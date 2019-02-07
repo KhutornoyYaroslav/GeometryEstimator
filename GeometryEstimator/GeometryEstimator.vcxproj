@@ -135,6 +135,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="GeometryCommon.cpp" />
     <ClCompile Include="GeometryTracker.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
