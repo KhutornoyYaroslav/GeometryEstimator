@@ -7,6 +7,8 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/videoio.hpp"
 #include "opencv2/highgui.hpp"
+#include "opencv2/video.hpp"
+#include "opencv2/objdetect.hpp"
 
 #include "GeometryCommon.h"
 
@@ -32,6 +34,8 @@ private:
 	std::vector<Track> m_finished_tracks;
 	std::vector<cv::Point2f> m_points_prev;
 	std::unique_ptr<cv::TermCriteria> p_termcrit;
+	std::unique_ptr<cv::CascadeClassifier> p_plate_detector;
+	cv::Ptr<cv::BackgroundSubtractorMOG2> p_backgnd_sub;
 
 public:
 	GeometryTracker();
@@ -39,8 +43,15 @@ public:
 
 	void clear();
 	bool process_frame(const cv::Mat& frame);
+	bool process_frame2(const cv::Mat& frame);
+	bool process_frame3(const cv::Mat& frame);
+
 	size_t tracks_count() const;
 	void get_tracks(std::vector<std::vector<cv::Point2f>>& tracks) const;
+
+private:
+
+	void get_contour_lines(const cv::Mat& gray_frame, std::vector<cv::Vec4i>& lines);
 };
 
 
