@@ -65,13 +65,14 @@ void EstimateRotherVP(const std::vector<LineF> &lines, cv::Point2f &vpoint, cv::
 			cv::Point2f point{ -((it_line_a->C() * it_line_b->B()) - (it_line_a->B() * it_line_b->C())) / d ,
 				-((it_line_a->A() * it_line_b->C()) - (it_line_a->C() * it_line_b->A())) / d };
 
-			// (x-x1)(y2-y1) = (y-y1)(x2-x1)
-			const float dx_point_a = (point.x - it_line_a->p1.x) * (it_line_a->p2.y - it_line_a->p1.y);
-			const float dy_point_a = (point.y - it_line_a->p1.y) * (it_line_a->p2.x - it_line_a->p1.x);
-			const float dx_point_b = (point.x - it_line_b->p1.x) * (it_line_b->p2.y - it_line_b->p1.y);
-			const float dy_point_b = (point.y - it_line_b->p1.y) * (it_line_b->p2.x - it_line_b->p1.x);
+			// Does intersection point lie on either of two vanishing lines ?
+			// To answer this quiestion we should to check two conditions:
+			// 1) (x-x1)(y2-y1) - (y-y1)(x2-x1) = 0; the point lies on line. In our case this condition is always true.
+			// 2) min(x1, x2) < x < max(x1, x2); the point lies between ends of line segment.
+			const bool line_a_btw = (point.x > std::min(it_line_a->p1.x, it_line_a->p2.x)) && (point.x < std::max(it_line_a->p1.x, it_line_a->p2.x));
+			const bool line_b_btw = (point.x > std::min(it_line_b->p1.x, it_line_b->p2.x)) && (point.x < std::max(it_line_b->p1.x, it_line_b->p2.x));
 
-			if (!(abs(dx_point_b - dy_point_b) <= FLT_EPSILON || abs(dx_point_a - dy_point_a) <= FLT_EPSILON))
+			if (!line_a_btw && !line_b_btw)
 			{
 				const float frame_center_y = static_cast<float>(frame_size.y) / 2.0f;
 

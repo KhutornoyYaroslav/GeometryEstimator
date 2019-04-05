@@ -19,7 +19,7 @@
 #define LK_WIN_SIZE_SCALE 0.025
 #define FEAUTERS_DIST_MIN 0.01
 
-class GeometryTracker
+class OpticalFlowTracker
 {
 private:
 	struct Track
@@ -34,24 +34,15 @@ private:
 	std::vector<Track> m_finished_tracks;
 	std::vector<cv::Point2f> m_points_prev;
 	std::unique_ptr<cv::TermCriteria> p_termcrit;
-	std::unique_ptr<cv::CascadeClassifier> p_plate_detector;
-	cv::Ptr<cv::BackgroundSubtractorMOG2> p_backgnd_sub;
 
 public:
-	GeometryTracker();
-	~GeometryTracker();
+	OpticalFlowTracker();
+	~OpticalFlowTracker() = default;
 
 	void clear();
-	bool process_frame(const cv::Mat& frame);
-	bool process_frame2(const cv::Mat& frame);
-	bool process_frame3(const cv::Mat& frame);
-
 	size_t tracks_count() const;
+	bool process_frame(const cv::Mat& frame);	
 	void get_tracks(std::vector<std::vector<cv::Point2f>>& tracks) const;
-
-private:
-
-	void get_contour_lines(const cv::Mat& gray_frame, std::vector<cv::Vec4i>& lines);
 };
 
 
