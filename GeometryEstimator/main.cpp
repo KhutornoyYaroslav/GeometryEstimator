@@ -11,7 +11,7 @@
 #include "AutoFocus.h"
 
 #include "LPRecognizer.h"
-
+#include "LPTracker.h"
 #include "HungarianAlgorithm.h"
 
 using namespace cv;
@@ -21,13 +21,13 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-	std::vector<std::vector<int>> matrix = 
+	/*std::vector<std::vector<int>> matrix = 
 	{ 
 		{ -7, -3, -6, -9, -5 },
 		{ -7, -5,- 7, -5, -6 },
 		{ -7, -6, -8, -8, -9 },
 		{ -3, -1, -6, -5, -7 },
-		{ -2, -4, -9, -9, -5 } 
+		{ -2, -4, -9, -9, -5 }
 	};
 
 	auto result = HungarianAlgorithm::solve(matrix);
@@ -38,7 +38,7 @@ int main(int argc, char** argv)
 	}
 
 	printf("size of result = %u \r\n", result.size());
-	system("pause");
+	system("pause");*/
 
 
 	std::vector<double> results;
@@ -49,7 +49,8 @@ int main(int argc, char** argv)
 	VideoCapture cap;
 	OpticalFlowTracker tracker;
 	LPRecognizer lprecognizer;
-	cap.open("..\\videos\\5.mp4");
+	LPTracker lptracker;
+	cap.open("..\\videos\\2.mp4");
 	//cap.open("..\\videos\\16.avi");
 	//cap.open("..\\videos\\ufa.mkv");
 
@@ -70,8 +71,21 @@ int main(int argc, char** argv)
 		cv::Mat debug_resize(frame_resize);
 		//auto plates = lprecognizer.process_frame(frame_resize, debug_resize);
 		//printf("plates size = %u \r\n", plates.size());
-		//imshow("Debug", debug_resize);
-		//cvWaitKey(1);
+
+
+		lptracker.process_frame(frame_resize, debug_resize);
+		imshow("Debug", debug_resize);
+		cvWaitKey(1);
+
+
+
+
+
+
+
+
+
+
 
 
 		//if (!tracker.process_frame(frame_resize))

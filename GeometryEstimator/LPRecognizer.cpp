@@ -47,8 +47,8 @@ std::vector<cv::Rect> LPRecognizer::process_frame(const cv::Mat& frame, cv::Mat&
 	std::vector<cv::Rect> plates;
 	p_plate_detector->detectMultiScale(gray_frame, plates, 1.1, 3, 0, m_cascade_wnd_size, m_cascade_wnd_size * 3);
 
-	if (plates.empty())
-		printf("No detect! \r\n");
+	//if (plates.empty())
+		//printf("No detect! \r\n");
 
 	// Print debug
 	if (!debug_frame.empty() && frame.size().area() != 0)

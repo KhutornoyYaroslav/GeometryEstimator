@@ -13,6 +13,10 @@
  {
 	// Размеры матрицы
 	int height = matrix.size();
+
+	if (height == 0)
+		return {};
+
 	int width = matrix[0].size();
 
 	if (height > width)

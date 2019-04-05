@@ -13,48 +13,72 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Исходные файлы\LicensePlate">
+      <UniqueIdentifier>{38ed4217-2cef-44b8-908a-177348a84f2e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\LicensePlate">
+      <UniqueIdentifier>{afa08dc4-c7ce-403b-bb99-e1a1ab23b53b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\OpticalFlow">
+      <UniqueIdentifier>{4d701041-9c0d-4500-8c73-005d3f7fe7fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\OpticalFlow">
+      <UniqueIdentifier>{ca91c825-c663-4243-b1d9-47e841d83b7d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\AutoFocus">
+      <UniqueIdentifier>{ca60c59b-4a36-49ec-8c0c-944ce2a57d44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\AutoFocus">
+      <UniqueIdentifier>{4a378003-0f60-451c-bf01-bb1fee775b9b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\Common">
+      <UniqueIdentifier>{a7910587-ca2d-4a27-abe6-0cc3e7e4ac58}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\Common">
+      <UniqueIdentifier>{4d9b44bc-b7dc-4afc-aaba-d1a49079b063}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="GeometryCommon.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="AutoFocus.cpp">
-      <Filter>Исходные файлы</Filter>
+    <ClCompile Include="LPTracker.cpp">
+      <Filter>Исходные файлы\LicensePlate</Filter>
     </ClCompile>
     <ClCompile Include="LPRecognizer.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="LPTracker.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="OpticalFlowTracker.cpp">
-      <Filter>Исходные файлы</Filter>
+      <Filter>Исходные файлы\LicensePlate</Filter>
     </ClCompile>
     <ClCompile Include="HungarianAlgorithm.cpp">
-      <Filter>Исходные файлы</Filter>
+      <Filter>Исходные файлы\LicensePlate</Filter>
+    </ClCompile>
+    <ClCompile Include="OpticalFlowTracker.cpp">
+      <Filter>Исходные файлы\OpticalFlow</Filter>
+    </ClCompile>
+    <ClCompile Include="AutoFocus.cpp">
+      <Filter>Исходные файлы\AutoFocus</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryCommon.cpp">
+      <Filter>Исходные файлы\Common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="GeometryCommon.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="AutoFocus.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
     <ClInclude Include="LPRecognizer.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>Файлы заголовков\LicensePlate</Filter>
     </ClInclude>
     <ClInclude Include="LPTracker.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="OpticalFlowTracker.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>Файлы заголовков\LicensePlate</Filter>
     </ClInclude>
     <ClInclude Include="HungarianAlgorithm.h">
-      <Filter>Файлы заголовков</Filter>
+      <Filter>Файлы заголовков\LicensePlate</Filter>
+    </ClInclude>
+    <ClInclude Include="OpticalFlowTracker.h">
+      <Filter>Файлы заголовков\OpticalFlow</Filter>
+    </ClInclude>
+    <ClInclude Include="AutoFocus.h">
+      <Filter>Файлы заголовков\AutoFocus</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryCommon.h">
+      <Filter>Файлы заголовков\Common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

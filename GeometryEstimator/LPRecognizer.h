@@ -20,10 +20,11 @@ public:
 	LPRecognizer();
 	~LPRecognizer();
 
+	bool initCascadeClassifier();
 	std::vector<cv::Rect> process_frame(const cv::Mat& frame, cv::Mat& debug_frame);
 
 private:
 
-	bool initCascadeClassifier();
+
 };
 
