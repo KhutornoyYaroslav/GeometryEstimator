@@ -12,7 +12,9 @@
 
 #include "LPRecognizer.h"
 #include "LPTracker.h"
-#include "HungarianAlgorithm.h"
+//#include "HungarianAlgorithm.h"
+
+#include "munkres.h"
 
 using namespace cv;
 using namespace std;
@@ -21,24 +23,25 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-	/*std::vector<std::vector<int>> matrix = 
-	{ 
-		{ -7, -3, -6, -9, -5 },
-		{ -7, -5,- 7, -5, -6 },
-		{ -7, -6, -8, -8, -9 },
-		{ -3, -1, -6, -5, -7 },
-		{ -2, -4, -9, -9, -5 }
-	};
+	//cv::Mat scores(5, 5, CV_32FC1);
+	//scores.setTo(cv::Scalar(1)); // 1 ?
 
-	auto result = HungarianAlgorithm::solve(matrix);
+	//scores.at<float>(0, 0) = 7; scores.at<float>(0, 1) = 3; scores.at<float>(0, 2) = 6; scores.at<float>(0, 3) = 9; scores.at<float>(0, 4) = 5;
+	//scores.at<float>(1, 0) = 7; scores.at<float>(1, 1) = 5; scores.at<float>(1, 2) = 7; scores.at<float>(1, 3) = 5; scores.at<float>(1, 4) = 6;
+	//scores.at<float>(2, 0) = 7; scores.at<float>(2, 1) = 6; scores.at<float>(2, 2) = 8; scores.at<float>(2, 3) = 8; scores.at<float>(2, 4) = 9;
+	//scores.at<float>(3, 0) = 3; scores.at<float>(3, 1) = 1; scores.at<float>(3, 2) = 6; scores.at<float>(3, 3) = 5; scores.at<float>(3, 4) = 7;
+	//scores.at<float>(4, 0) = 2; scores.at<float>(4, 1) = 4; scores.at<float>(4, 2) = 9; scores.at<float>(4, 3) = 9; scores.at<float>(4, 4) = 5;
 
-	for (size_t i = 0; i < result.size(); ++i)
-	{
-		cout << result[i].first << " " << result[i].second << endl;
-	}
+	//std::cout << "Data: \n" << scores << std::endl;
 
-	printf("size of result = %u \r\n", result.size());
-	system("pause");*/
+	////scores = 1 / scores;
+
+	//Munkres<float> hunharian;
+	//cv::Mat res = hunharian.solve(scores);
+	//
+
+	//std::cout << "Res: \n" << res << std::endl;
+	//system("pause");
 
 
 	std::vector<double> results;
@@ -50,9 +53,9 @@ int main(int argc, char** argv)
 	OpticalFlowTracker tracker;
 	LPRecognizer lprecognizer;
 	LPTracker lptracker;
-	cap.open("..\\videos\\2.mp4");
+	cap.open("..\\videos\\5.mp4");
 	//cap.open("..\\videos\\16.avi");
-	//cap.open("..\\videos\\ufa.mkv");
+	//cap.open("..\\videos\\ufa3.mkv");
 
 	if (!cap.isOpened())
 	{
@@ -74,6 +77,9 @@ int main(int argc, char** argv)
 
 
 		lptracker.process_frame(frame_resize, debug_resize);
+
+		//cv::Mat debug_resize2;
+		//cv::resize(debug_resize, debug_resize2, cv::Size(), 0.5, 0.5);
 		imshow("Debug", debug_resize);
 		cvWaitKey(1);
 

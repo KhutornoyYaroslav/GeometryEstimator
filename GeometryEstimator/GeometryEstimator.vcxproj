@@ -137,7 +137,8 @@
   <ItemGroup>
     <ClCompile Include="AutoFocus.cpp" />
     <ClCompile Include="GeometryCommon.cpp" />
-    <ClCompile Include="HungarianAlgorithm.cpp" />
+    <ClCompile Include="LPTrack.cpp" />
+    <ClCompile Include="munkres.cpp" />
     <ClCompile Include="OpticalFlowTracker.cpp" />
     <ClCompile Include="LPRecognizer.cpp" />
     <ClCompile Include="LPTracker.cpp" />
@@ -146,7 +147,9 @@
   <ItemGroup>
     <ClInclude Include="AutoFocus.h" />
     <ClInclude Include="GeometryCommon.h" />
-    <ClInclude Include="HungarianAlgorithm.h" />
+    <ClInclude Include="LPTrack.h" />
+    <ClInclude Include="matrix.h" />
+    <ClInclude Include="munkres.h" />
     <ClInclude Include="OpticalFlowTracker.h" />
     <ClInclude Include="LPRecognizer.h" />
     <ClInclude Include="LPTracker.h" />

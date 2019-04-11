@@ -44,11 +44,17 @@ std::vector<cv::Rect> LPRecognizer::process_frame(const cv::Mat& frame, cv::Mat&
 		return {};
 	}
 
-	std::vector<cv::Rect> plates;
-	p_plate_detector->detectMultiScale(gray_frame, plates, 1.1, 3, 0, m_cascade_wnd_size, m_cascade_wnd_size * 3);
+	// Params
+	const double precision = 1.1;
+	const double min_neighbors = 5;
 
-	//if (plates.empty())
-		//printf("No detect! \r\n");
+	// Detect plates
+	std::vector<cv::Rect> plates;
+	p_plate_detector->detectMultiScale(gray_frame, plates, precision, min_neighbors, 0, m_cascade_wnd_size, m_cascade_wnd_size * 1);
+
+	// Group idential rects
+	plates.insert(std::end(plates), std::begin(plates), std::end(plates));
+	cv::groupRectangles(plates, 1, 0.5);
 
 	// Print debug
 	if (!debug_frame.empty() && frame.size().area() != 0)

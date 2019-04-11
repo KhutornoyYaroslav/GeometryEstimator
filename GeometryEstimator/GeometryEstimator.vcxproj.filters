@@ -37,6 +37,12 @@
     <Filter Include="Файлы заголовков\Common">
       <UniqueIdentifier>{4d9b44bc-b7dc-4afc-aaba-d1a49079b063}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Файлы заголовков\HungarianAlgorithm">
+      <UniqueIdentifier>{dd3d5d2e-7704-4bdc-aef2-389afe3b2abe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\HungarianAlgorithm">
+      <UniqueIdentifier>{910d9579-caef-4ef8-ac09-c7e9dbf76248}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -48,9 +54,6 @@
     <ClCompile Include="LPRecognizer.cpp">
       <Filter>Исходные файлы\LicensePlate</Filter>
     </ClCompile>
-    <ClCompile Include="HungarianAlgorithm.cpp">
-      <Filter>Исходные файлы\LicensePlate</Filter>
-    </ClCompile>
     <ClCompile Include="OpticalFlowTracker.cpp">
       <Filter>Исходные файлы\OpticalFlow</Filter>
     </ClCompile>
@@ -60,15 +63,18 @@
     <ClCompile Include="GeometryCommon.cpp">
       <Filter>Исходные файлы\Common</Filter>
     </ClCompile>
+    <ClCompile Include="munkres.cpp">
+      <Filter>Исходные файлы\HungarianAlgorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="LPTrack.cpp">
+      <Filter>Исходные файлы\LicensePlate</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LPRecognizer.h">
       <Filter>Файлы заголовков\LicensePlate</Filter>
     </ClInclude>
     <ClInclude Include="LPTracker.h">
-      <Filter>Файлы заголовков\LicensePlate</Filter>
-    </ClInclude>
-    <ClInclude Include="HungarianAlgorithm.h">
       <Filter>Файлы заголовков\LicensePlate</Filter>
     </ClInclude>
     <ClInclude Include="OpticalFlowTracker.h">
@@ -79,6 +85,15 @@
     </ClInclude>
     <ClInclude Include="GeometryCommon.h">
       <Filter>Файлы заголовков\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="matrix.h">
+      <Filter>Файлы заголовков\HungarianAlgorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="munkres.h">
+      <Filter>Файлы заголовков\HungarianAlgorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="LPTrack.h">
+      <Filter>Файлы заголовков\LicensePlate</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
