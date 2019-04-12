@@ -52,10 +52,14 @@ int main(int argc, char** argv)
 	VideoCapture cap;
 	OpticalFlowTracker tracker;
 	LPRecognizer lprecognizer;
+	LPRecognizer lprecognizer2;
+	LPRecognizer lprecognizer3;
+
+
 	LPTracker lptracker;
 	cap.open("..\\videos\\5.mp4");
 	//cap.open("..\\videos\\16.avi");
-	//cap.open("..\\videos\\ufa3.mkv");
+	//cap.open("..\\videos\\ufa2.mkv");
 
 	if (!cap.isOpened())
 	{
@@ -73,23 +77,38 @@ int main(int argc, char** argv)
 		cv::resize(frame, frame_resize, cv::Size(), 1.0, 1.0);	
 		cv::Mat debug_resize(frame_resize);
 		//auto plates = lprecognizer.process_frame(frame_resize, debug_resize);
-		//printf("plates size = %u \r\n", plates.size());
-
-
+		//lprecognizer.calibrate_zones(frame_resize, debug_resize);
+		//auto plates = lprecognizer.process_frame(frame_resize, debug_resize);
 		lptracker.process_frame(frame_resize, debug_resize);
 
-		//cv::Mat debug_resize2;
-		//cv::resize(debug_resize, debug_resize2, cv::Size(), 0.5, 0.5);
+		//cv::Mat debug_resize_;
+		//cv::resize(debug_resize, debug_resize_, cv::Size(), 1.25, 1.25);
 		imshow("Debug", debug_resize);
 		cvWaitKey(1);
 
 
 
 
+		/*cv::Mat frame_resize2;
+		cv::resize(frame, frame_resize2, cv::Size(), 2.0, 2.0);
+		cv::Mat debug_resize2(frame_resize2);
+		plates = lprecognizer2.process_frame(frame_resize2, debug_resize2);
+		cv::Mat debug_resize2_;
+		cv::resize(debug_resize2, debug_resize2_, cv::Size(), 0.25, 0.25);
+		imshow("Debug2", debug_resize2_);
+		cvWaitKey(1);
 
 
 
 
+		cv::Mat frame_resize3;
+		cv::resize(frame, frame_resize3, cv::Size(), 1.0, 1.0);
+		cv::Mat debug_resize3(frame_resize3);
+		plates = lprecognizer3.process_frame(frame_resize3, debug_resize3);
+		cv::Mat debug_resize3_;
+		cv::resize(debug_resize3, debug_resize3_, cv::Size(), 0.5, 0.5);
+		imshow("Debug3", debug_resize3_);
+		cvWaitKey(1);*/
 
 
 

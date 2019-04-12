@@ -69,6 +69,9 @@
     <ClCompile Include="LPTrack.cpp">
       <Filter>Исходные файлы\LicensePlate</Filter>
     </ClCompile>
+    <ClCompile Include="LPRecognizerZone.cpp">
+      <Filter>Исходные файлы\LicensePlate</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LPRecognizer.h">
@@ -93,6 +96,9 @@
       <Filter>Файлы заголовков\HungarianAlgorithm</Filter>
     </ClInclude>
     <ClInclude Include="LPTrack.h">
+      <Filter>Файлы заголовков\LicensePlate</Filter>
+    </ClInclude>
+    <ClInclude Include="LPRecognizerZone.h">
       <Filter>Файлы заголовков\LicensePlate</Filter>
     </ClInclude>
   </ItemGroup>

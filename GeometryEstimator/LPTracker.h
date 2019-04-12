@@ -29,7 +29,7 @@ class LPTracker
 private:
 	std::unique_ptr<LPRecognizer> p_recognizer;
 	std::vector<LPTrack> m_process_tracks;
-
+	std::vector<LPTrack> m_finished_tracks;
 	int m_track_age = 5;
 
 public:
