@@ -2,18 +2,20 @@
 
 LPRecognizerZone::LPRecognizerZone()
 {
-	set_zone({});
+	clear();
 };
 
-LPRecognizerZone::LPRecognizerZone(const cv::Rect& zone, const cv::Point& frame_size)
+LPRecognizerZone::LPRecognizerZone(const cv::Rect& zone, const cv::Size& frame_size, const cv::Size& plate_size)
 {
+	clear();
 	set_zone(zone);
+	set_plate_size(plate_size);
 	set_frame_size(frame_size);
 };
 
-void LPRecognizerZone::set_frame_size(const cv::Point& frame_size)
+void LPRecognizerZone::set_color(const cv::Scalar& color)
 {
-	m_frame_size = frame_size;
+	m_color = color;
 };
 
 void LPRecognizerZone::set_zone(const cv::Rect& zone)
@@ -21,97 +23,144 @@ void LPRecognizerZone::set_zone(const cv::Rect& zone)
 	m_zone = zone;
 };
 
-cv::Rect LPRecognizerZone::rect() const
+void LPRecognizerZone::set_plate_size(const cv::Size& size)
+{
+	m_plate_size = size;
+};
+
+void LPRecognizerZone::set_frame_size(const cv::Size& frame_size)
+{
+	m_frame_size = frame_size;
+};
+
+cv::Rect LPRecognizerZone::zone() const
 {
 	return m_zone;
 };
 
-size_t LPRecognizerZone::size() const
+size_t LPRecognizerZone::points_size() const
 {
-	return m_rects.size();
+	return m_points.size();
+};
+
+cv::Scalar LPRecognizerZone::color() const
+{
+	return m_color;
+};
+
+cv::Size LPRecognizerZone::plate_size() const
+{
+	return m_plate_size;
 };
 
 void LPRecognizerZone::clear()
 {
 	m_zone = {};
 	m_frame_size = {};
-	m_rects.clear();
-};
-
-void LPRecognizerZone::add_plates(const std::vector<cv::Rect>& plates)
-{
-	m_rects.insert(m_rects.end(), plates.begin(), plates.end());
+	m_plate_size = {};
+	m_color = {};
+	m_points.clear();
+	m_points_density = {};
 };
 
 void LPRecognizerZone::calibrate()
 {
-	if (m_rects.empty())
+	if (m_points.empty())
 		return; 
 
-	m_zone = bound_plates();
-	auto bound_zone = bound_plates();
-
-	int new_center_x = bound_zone.x + bound_zone.width / 2;
-	int new_center_y = (bound_zone.y + bound_zone.height / 2);
-
-	int new_height = std::max(200.0, m_zone.height * 1.3); // TODO: 200.0 ?
+	const auto bound_zone = bound_points();
+	const int new_height = static_cast<int>(std::max(m_frame_size.height * 0.01, bound_zone.height * 1.2));
 
 	m_zone.x = 0;
 	m_zone.y = std::max(0, (bound_zone.y + bound_zone.height / 2) - new_height / 2);
 
-	m_zone.width = m_frame_size.x;
-	m_zone.height = std::min(new_height, m_frame_size.y - m_zone.y);
+	m_zone.width = m_frame_size.width;
+	m_zone.height = std::min(new_height, m_frame_size.height - m_zone.y);
 };
 
-cv::Rect LPRecognizerZone::bound_plates()
+void LPRecognizerZone::add_points(const std::vector<cv::Rect>& rects)
 {
-	int amount = 0;
-	double radius = 0;
-	std::vector<std::pair<cv::Point, int>> data;
+	std::vector<cv::Point> points(rects.size());
 
-	if (m_rects.empty())
-		return {};
+	for (size_t i = 0; i < points.size(); ++i)
+		points[i] = cv::Point(rects[i].x + rects[i].width / 2, rects[i].y + rects[i].height / 2);
 
-	for (size_t i = 0; i < m_rects.size(); ++i)
-		radius += cv::norm(m_rects[i].tl() - m_rects[i].br());
+	add_points(points);
+};
 
-	radius = 0.5 * (radius / m_rects.size());
+void LPRecognizerZone::add_points(const std::vector<cv::Point>& points)
+{
+	if (points.empty())
+		return;
 
-	for (size_t i = 0; i < m_rects.size(); ++i)
-	{	
-		int counter = 0;
-		cv::Point point(m_rects[i].x + m_rects[i].width / 2, m_rects[i].y + m_rects[i].height / 2);
+	m_points_density = 0.0;	
+	const double min_radius = 5.0;
+	const double max_radius = 0.5 * cv::norm(cv::Point(0, 0) - cv::Point(m_plate_size.width, m_plate_size.height)); // TODO: if m_plate_size == {} ?
 
-		for (size_t j = 0; j < m_rects.size(); ++j)
+	// Re-compute metrics for old points:
+	for (size_t i = 0; i < m_points.size(); ++i)
+	{
+		for (size_t j = 0; j < points.size(); ++j)
 		{
-			cv::Point pair_point(m_rects[j].x + m_rects[j].width / 2, m_rects[j].y + m_rects[j].height / 2);
-			if (cv::norm(point - pair_point) <= radius)
-				++counter;
+			const double dist = cv::norm(points[j] - m_points[i].first);
+			if (dist < max_radius && dist > min_radius)
+				++m_points[i].second;
 		}
 
-		amount += counter;
-		data.push_back(std::pair<cv::Point, int>(point, counter));
+		m_points_density += static_cast<double>(m_points[i].second);
 	}
 
-	std::vector<cv::Point> filtered_points;
-	const double average_amount = static_cast<double>(amount) / (data.size() + DBL_EPSILON);
+	// Compute metrics for new points
+	std::vector<std::pair<cv::Point, size_t>> new_points(points.size());
 
-	for (size_t i = 0; i < data.size(); ++i)
-		if (data[i].second >= 0.5 * average_amount)
-			filtered_points.push_back(data[i].first);
+	for (size_t i = 0; i < new_points.size(); ++i)
+	{
+		new_points[i].first = points[i];
+		new_points[i].second = 0;
+
+		for (size_t j = 0; j < m_points.size(); ++j)
+		{
+			const double dist = cv::norm(new_points[i].first - m_points[j].first);
+			if (dist < max_radius && dist > min_radius)
+				++new_points[i].second;
+		}
+
+		for (size_t j = 0; j < points.size(); ++j)
+		{
+			if (i == j) continue;
+
+			const double dist = cv::norm(new_points[i].first - new_points[j].first);
+			if (dist < max_radius && dist > min_radius)
+				++new_points[i].second;
+		}
+
+		m_points_density += static_cast<double>(new_points[i].second);
+	}
+
+	m_points.insert(m_points.end(), new_points.begin(), new_points.end());
+	assert(!m_points.empty());
+	m_points_density /= m_points.size();
+};
+
+cv::Rect LPRecognizerZone::bound_points()
+{
+	if (m_points.empty())
+		return {};
+
+	std::vector<cv::Point> filtered_points;
+	filtered_points.reserve(m_points.size());
+
+	for (size_t i = 0; i < m_points.size(); ++i)
+		if (m_points[i].second >= 0.65 * m_points_density)
+			filtered_points.push_back(m_points[i].first);
 
 	return cv::boundingRect(filtered_points);
 };
 
 void LPRecognizerZone::print(cv::Mat image) const
 {
-	auto color = cv::Scalar(150 + rand() % 155, 0 + rand() % 255, 100 + rand() % 155);
+	cv::rectangle(image, m_zone, m_color, 2, CV_AA);
 
-	cv::rectangle(image, m_zone, color, 2, CV_AA);
-
-	for (size_t i = 0; i < m_rects.size(); ++i)
-	{
-		cv::Point point(m_rects[i].x + m_rects[i].width / 2, m_rects[i].y + m_rects[i].height / 2);
-		//cv::circle(image, point, 3, cv::Scalar(0, 0, 200), 3, CV_AA);
-	}
-};
+	for (size_t i = 0; i < m_points.size(); ++i)
+		cv::circle(image, m_points[i].first, 3, m_color, 3, CV_AA);
+}

@@ -148,8 +148,12 @@ void LPTracker::process_frame(const cv::Mat& frame, cv::Mat debug)
 
 			if (it->lost_frames() > m_track_age)
 			{
-				if(it->get_plates()->size() > 5)
+				if (it->get_plates()->size() > 5)
+				{
 					m_finished_tracks.push_back(*it);
+					printf("finished track size = %u \r\n", m_finished_tracks.size());
+				}
+					
 
 				it = m_process_tracks.erase(it);
 			}
@@ -175,73 +179,76 @@ void LPTracker::process_frame(const cv::Mat& frame, cv::Mat debug)
 
 
 	// ********************** DEBUG SECTION ********************** 
-	for (size_t i = 0; i < m_process_tracks.size(); ++i)
-	{
-		const auto& color = m_process_tracks[i].color();
-		auto& track = m_process_tracks[i];
-		
-		for (size_t j = 0; j < track.get_plates()->size() - 1; ++j)
-		{		
-			const auto rect = track.get_plates()->at(j).get_rect();
-			const auto rect_center = track.get_plates()->at(j).get_center();
-
-			const auto rect_next = track.get_plates()->at(j+1).get_rect();
-			const auto rect_center_next = track.get_plates()->at(j+1).get_center();
-			cv::circle(debug, rect_center, 2, color, 2);
-
-			cv::line(debug, rect_center, rect_center_next, color, 1, CV_AA);
-		}
-
-		const auto rect = track.get_plates()->back().get_rect();
-		const auto rect_center = track.get_plates()->back().get_center();
-		cv::circle(debug, rect_center, 2, color, 2);
 
 
-		//// VECTOR OF TRACK DIRECTION
-		//{
-		//	double track_lenght = 0.0;
-		//	for (auto it = std::next(track.plates.begin()); it != track.plates.end(); ++it)
-		//	{
-		//		track_lenght += cv::norm(it->get_center() - std::prev(it)->get_center());
-		//	}
-		//	const double min_dist = track_lenght / 5.0; // PARAMETER
-		//
-		//	cv::Point ref_point = {};
-		//	cv::Point end_point = track.plates.rbegin()->get_center();
 
-		//	for (auto rev_it = track.plates.rbegin(); rev_it != track.plates.rend(); ++rev_it)
-		//	{
-		//		ref_point = rev_it->get_center();
-		//		if (cv::norm(end_point - ref_point) >= min_dist)
-		//			break;
-		//	}
+	//for (size_t i = 0; i < m_process_tracks.size(); ++i)
+	//{
+	//	const auto& color = m_process_tracks[i].color();
+	//	auto& track = m_process_tracks[i];
+	//	
+	//	for (size_t j = 0; j < track.get_plates()->size() - 1; ++j)
+	//	{		
+	//		const auto rect = track.get_plates()->at(j).get_rect();
+	//		const auto rect_center = track.get_plates()->at(j).get_center();
 
-		//	cv::line(debug, end_point, ref_point, cv::Scalar(255, 255, 255), 2, CV_AA);
-		//}
+	//		const auto rect_next = track.get_plates()->at(j+1).get_rect();
+	//		const auto rect_center_next = track.get_plates()->at(j+1).get_center();
+	//		cv::circle(debug, rect_center, 2, color, 2);
 
+	//		cv::line(debug, rect_center, rect_center_next, color, 1, CV_AA);
+	//	}
 
-	}
+	//	const auto rect = track.get_plates()->back().get_rect();
+	//	const auto rect_center = track.get_plates()->back().get_center();
+	//	cv::circle(debug, rect_center, 2, color, 2);
 
 
-	for (size_t i = 0; i < m_finished_tracks.size(); ++i)
-	{
-		const auto& color = m_finished_tracks[i].color();
-		auto& track = m_finished_tracks[i];
+	//	//// VECTOR OF TRACK DIRECTION
+	//	//{
+	//	//	double track_lenght = 0.0;
+	//	//	for (auto it = std::next(track.plates.begin()); it != track.plates.end(); ++it)
+	//	//	{
+	//	//		track_lenght += cv::norm(it->get_center() - std::prev(it)->get_center());
+	//	//	}
+	//	//	const double min_dist = track_lenght / 5.0; // PARAMETER
+	//	//
+	//	//	cv::Point ref_point = {};
+	//	//	cv::Point end_point = track.plates.rbegin()->get_center();
 
-		for (size_t j = 0; j < track.get_plates()->size() - 1; ++j)
-		{
-			const auto rect = track.get_plates()->at(j).get_rect();
-			const auto rect_center = track.get_plates()->at(j).get_center();
+	//	//	for (auto rev_it = track.plates.rbegin(); rev_it != track.plates.rend(); ++rev_it)
+	//	//	{
+	//	//		ref_point = rev_it->get_center();
+	//	//		if (cv::norm(end_point - ref_point) >= min_dist)
+	//	//			break;
+	//	//	}
 
-			const auto rect_next = track.get_plates()->at(j + 1).get_rect();
-			const auto rect_center_next = track.get_plates()->at(j + 1).get_center();
-			cv::circle(debug, rect_center, 2, color, 2);
+	//	//	cv::line(debug, end_point, ref_point, cv::Scalar(255, 255, 255), 2, CV_AA);
+	//	//}
 
-			cv::line(debug, rect_center, rect_center_next, color, 1, CV_AA);
-		}
 
-		const auto rect = track.get_plates()->back().get_rect();
-		const auto rect_center = track.get_plates()->back().get_center();
-		cv::circle(debug, rect_center, 2, color, 2);
-	}
+	//}
+
+
+	//for (size_t i = 0; i < m_finished_tracks.size(); ++i)
+	//{
+	//	const auto& color = m_finished_tracks[i].color();
+	//	auto& track = m_finished_tracks[i];
+
+	//	for (size_t j = 0; j < track.get_plates()->size() - 1; ++j)
+	//	{
+	//		const auto rect = track.get_plates()->at(j).get_rect();
+	//		const auto rect_center = track.get_plates()->at(j).get_center();
+
+	//		const auto rect_next = track.get_plates()->at(j + 1).get_rect();
+	//		const auto rect_center_next = track.get_plates()->at(j + 1).get_center();
+	//		cv::circle(debug, rect_center, 2, color, 2);
+
+	//		cv::line(debug, rect_center, rect_center_next, color, 1, CV_AA);
+	//	}
+
+	//	const auto rect = track.get_plates()->back().get_rect();
+	//	const auto rect_center = track.get_plates()->back().get_center();
+	//	cv::circle(debug, rect_center, 2, color, 2);
+	//}
 };
