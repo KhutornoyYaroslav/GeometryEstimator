@@ -138,6 +138,25 @@ void LPRecognizerZone::add_points(const std::vector<cv::Point>& points)
 	}
 
 	m_points.insert(m_points.end(), new_points.begin(), new_points.end());
+
+	// Remove duplicate points
+	std::unordered_set<cv::Point> pointset;
+	auto itor = m_points.begin();
+	while (itor != m_points.end())
+	{
+		if (pointset.find(itor->first) != pointset.end())
+		{
+			m_points_density -= static_cast<double>(itor->second);
+			itor = m_points.erase(itor);
+		}
+		else
+		{
+			pointset.insert(itor->first);
+			itor++;
+		}
+	}
+
+	// Compute points density
 	assert(!m_points.empty());
 	m_points_density /= m_points.size();
 };

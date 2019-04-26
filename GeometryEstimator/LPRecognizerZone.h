@@ -4,9 +4,23 @@
 #include "opencv2/videoio.hpp"
 #include "opencv2/highgui.hpp"
 
+#include <unordered_set>
+
 // TODO:
 // 1. Add methods "bound by height, bound by width"...
 //
+
+namespace std
+{
+	template<>
+	struct hash<cv::Point>
+	{
+		size_t operator()(cv::Point const& pt) const
+		{
+			return (size_t)(pt.x * 100 + pt.y);
+		}
+	};
+}
 
 class LPRecognizerZone
 {
@@ -47,4 +61,3 @@ public:
 private:
 	cv::Rect bound_points();
 };
-

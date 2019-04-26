@@ -26,69 +26,110 @@ int main(int argc, char** argv)
 	size_t frame_counter = 0;
 
 	VideoCapture cap;
-	OpticalFlowTracker tracker;
 	LPRecognizer lprecognizer;
 	LPTracker lptracker;
 
-	//cap.open("..\\videos\\6.mp4");
-	//cap.open("..\\videos\\23.avi");
-	cap.open("..\\videos\\ufa2.mkv");
+	cap.open("..\\videos\\5.mp4");
 
 	if (!cap.isOpened())
 	{
-		cout << "Could not initialize capturing...\n";
+		cout << "Could not initialize capturing.. \r\n";
+		cin.get();
 		return 0;
 	}
 
-	for (;;)
+	if (!lprecognizer.init())
 	{
-		++counter;
-			
+		cerr << "Error while initing LPRecognizer. \r\n";
+		cin.get();
+		return 0;
+	}
+
+	//if (!lprecognizer.load_from_json("config_5.json"))
+	//{
+	//	cerr << "Error while reading config.json file. \r\n";
+	//	cin.get();
+	//	return 0;
+	//}
+
+	if (!lprecognizer.start_calibration())
+	{
+		cerr << "Error while starting calibration. \r\n";
+		cin.get();
+		return 0;
+	}
+
+	lprecognizer.set_min_plate_size(cv::Size(25, 9));
+
+	while(true)
+	{		
+		// Capture new frame
 		if (cap.read(frame))
 		{
 			++frame_counter;
 
 			if (frame_counter == static_cast<size_t>(cap.get(CV_CAP_PROP_FRAME_COUNT)))
 			{
-				printf("****************** RESTART VIDEO! ******************\r\n");
 				frame_counter = 0;
 				cap.set(CV_CAP_PROP_POS_FRAMES, 0);
 			}
 		}
 
 
-		//cv::Mat frame_resize;
-		//cv::resize(frame, frame_resize, cv::Size(), 2.0, 2.0);	
+		/*cv::Mat frame_resize;
+		cv::resize(frame, frame_resize, cv::Size(), 2.0, 2.0);	
 		cv::Mat debug_resize;
-		frame.copyTo(debug_resize);
+		frame_resize.copyTo(debug_resize);*/
 
 		auto start = std::chrono::high_resolution_clock::now();
+		lprecognizer.capture_frame(frame);
 
-		lprecognizer.calibrate_zones(frame, debug_resize);
-		auto plates = lprecognizer.process_frame(frame, debug_resize);
-		
-		//lptracker.process_frame(frame, debug_resize);
+		std::vector<cv::Rect> result;
+		lprecognizer.detect(result);
+
+		for (auto& p : result)
+			cv::rectangle(frame, p, cv::Scalar(0, 255, 0), 2, CV_AA);
+
+		//printf("plates detected %u \r\n", result.size());
 
 		auto end = std::chrono::high_resolution_clock::now();
 		auto time = std::chrono::duration_cast<std::chrono::milliseconds>(start - end).count();
 
+		++counter;
 		if (counter >= 100)
 		{
+
 			auto avr = (double)time_sum / counter;
 
 			std::cout << "FPS = " << abs(1000.0 / avr) << std::endl;
 			time_sum = 0;
 			counter = 0;
+			
+			if (lprecognizer.is_calibration_finished())
+			{
+				//lprecognizer.save_to_json("config_5.json");
+				std::cout << "Calibration finisehd \r\n";
+			}
 		}
 		else
 		{
 			time_sum += time;
 		}
 
-		cv::Mat debug_resize_;
-		cv::resize(debug_resize, debug_resize_, cv::Size(), 0.75, 0.75);
-		imshow("Debug", debug_resize_);
+		//cv::Mat debug_resize_;
+		//cv::resize(debug_resize, debug_resize_, cv::Size(), 0.35, 0.35);
+		//imshow("Debug", debug_resize_);
+		//cvWaitKey(1);
+
+
+		imshow("Frame", frame);
 		cvWaitKey(1);
+
+
+
+
+
+
 	}
 
 	system("pause");

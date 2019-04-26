@@ -1,26 +1,27 @@
 #pragma once
-#include <memory>
+
 #include <list>
+#include <mutex>
+#include <atomic>
+#include <thread>
+#include <memory>
+#include <fstream>
 
 #include "opencv2/objdetect.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/videoio.hpp"
 #include "opencv2/highgui.hpp"
 
+#include "rapidjson/document.h"
+#include "rapidjson/ostreamwrapper.h"
+#include "rapidjson/istreamwrapper.h"
+#include "rapidjson/prettywriter.h"
+
 #include "LPRecognizerZone.h"
-// TODO:
-// 1) Возможность настраивать вручную макс и мин размеры номеров
-// 2) Возможность накопления статистики и автомат. вычисления мин и макс размеров номеров
-// 3) Сранвить производиельность при мастш. изображении и при масшт. номеров. Возможно, на этапе распознавания
-//    пластин не стоит гнаться за качеством изображения, главное - получить координаты номера, а кач. изображение номера
-//    потом взять из исходного изображения.
 
-// TODO: СРОЧНО!
-// А если номера на одном месте ? ? Движения нет, а мы думаем, что есть...
-// -----------------------------> Бороться со стоячими номерами (точками) <-----------------------------
-
-#define POINTS_TO_CALIBRATE 125
-#define MIN_POINTS_TO_CALIBRATE 30
+#define DEBUG_PRINT
+#define POINTS_TO_CALIBRATE 75
+#define MIN_POINTS_TO_CALIBRATE 25
 #define MAX_STOP_WEIGHT 100.0
 #define PLATE_RESIZE_SCALE 1.3
 
@@ -28,6 +29,26 @@ class LPRecognizer
 {
 private:
 
+	// Zones
+	mutable std::mutex m_zones_mutex;
+	std::list<LPRecognizerZone> m_zones;
+
+	// Detector
+	mutable std::mutex m_detector_mutex;
+	std::unique_ptr<cv::CascadeClassifier> p_plate_detector;
+
+	// Plate sizes
+	cv::Size m_min_plate_size; 
+	cv::Size m_max_plate_size;
+	mutable std::mutex m_plate_size_mutex;
+
+	// Image capturing
+	cv::Mat m_gray_image;
+	std::mutex m_input_mutex;
+	bool m_is_new_image_detection;
+	bool m_is_new_image_calibration;
+
+	// Calibration
 	enum class CalibrationState
 	{
 		init,
@@ -38,33 +59,32 @@ private:
 		finished
 	};
 
-	CalibrationState m_state;
-	std::list<LPRecognizerZone> m_zones;
-	std::unique_ptr<cv::CascadeClassifier> p_plate_detector;
-
-	cv::Size m_min_plate_size; 
-	cv::Size m_max_plate_size;
-
-
-
-	bool is_calib_finished = false;	
-	LPRecognizerZone m_cur_zone;
-	double m_cur_stop_weight = 0.0; //int m_cur_missed_frames = 0;
-	size_t m_zero_zones_count = 0;
+	std::thread m_calibration_thread;
+	std::atomic<bool> m_is_calibration_finished;
+	std::atomic<bool> m_calibration_interruption;
 
 public:
 	LPRecognizer();
 	~LPRecognizer();
 
-	bool initCascadeClassifier();	
-	void correct_zones(const cv::Size& frame_size);
-	void calibrate_zones(const cv::Mat& frame, cv::Mat& debug_frame);
-	std::vector<cv::Rect> process_frame(const cv::Mat& frame, cv::Mat& debug_frame);
+	bool init();
+	bool stop_calibration();
+	bool start_calibration();
+	bool is_calibration_finished() const;
+	bool capture_frame(const cv::Mat& frame);
+	bool detect(std::vector<cv::Rect>& plates);
 
+	cv::Size min_plate_size() const;
+	cv::Size max_plate_size() const;
 	void set_min_plate_size(const cv::Size& size);
 	void set_max_plate_size(const cv::Size& size);
 
+	bool load_from_json(const std::string& filename);
+	bool save_to_json(const std::string& filename) const;
+
 private:
+	void calibration_function();
+	void correct_zones(const cv::Size& frame_size, std::list<LPRecognizerZone>& zones) const;
 	std::vector<cv::Rect> detect_plates(const cv::Mat& gray_frame, const cv::Rect& ROI, const cv::Size& plate_size, const int& min_neighbor) const;
 };
 

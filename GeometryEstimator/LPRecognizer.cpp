@@ -2,19 +2,20 @@
 
 LPRecognizer::LPRecognizer()
 {
-	p_plate_detector = std::make_unique<cv::CascadeClassifier>();
-	initCascadeClassifier();
+	set_min_plate_size(cv::Size(0, 0));
+	set_max_plate_size(cv::Size(0, 0));
 
-	m_state = CalibrationState::init;
-	m_min_plate_size = {};
-	m_max_plate_size = {};
+	m_is_calibration_finished.store(true);
+	m_calibration_interruption.store(false);
+
+	p_plate_detector = std::make_unique<cv::CascadeClassifier>();
 }
 
 LPRecognizer::~LPRecognizer()
 {
 }
 
-bool LPRecognizer::initCascadeClassifier()
+bool LPRecognizer::init()
 {
 	if (!p_plate_detector)
 		return false;
@@ -27,28 +28,403 @@ bool LPRecognizer::initCascadeClassifier()
 
 void LPRecognizer::set_min_plate_size(const cv::Size& size)
 {
+	std::lock_guard<std::mutex> lock(m_plate_size_mutex);
 	m_min_plate_size = size;
 };
 
 void LPRecognizer::set_max_plate_size(const cv::Size& size)
 {
+	std::lock_guard<std::mutex> lock(m_plate_size_mutex);
 	m_max_plate_size = size;
+};
+
+cv::Size LPRecognizer::min_plate_size() const
+{
+	std::lock_guard<std::mutex> lock(m_plate_size_mutex);
+	return m_min_plate_size;
+};
+
+cv::Size LPRecognizer::max_plate_size() const
+{
+	std::lock_guard<std::mutex> lock(m_plate_size_mutex);
+	return m_max_plate_size;
+};
+
+bool LPRecognizer::save_to_json(const std::string& filename) const
+{
+	// Open the file or create if it don't exist in filesystem
+	std::fstream file(filename.c_str(), std::fstream::out | std::fstream::app);
+	file.close();
+	file.open(filename.c_str(), std::fstream::out | std::fstream::in);
+
+	if (!file.is_open())
+		return false;
+	
+	// Read file and parse to document
+	rapidjson::Document doc;
+	rapidjson::IStreamWrapper in_stream(file);	
+	doc.ParseStream(in_stream);
+
+	if (doc.GetParseError() == rapidjson::kParseErrorNone || doc.GetParseError() == rapidjson::kParseErrorDocumentEmpty)
+	{
+		if (!doc.IsObject())
+			doc.SetObject();
+		
+		rapidjson::Value recognizer_parameters(rapidjson::kObjectType);
+		rapidjson::Value plate_size_min(rapidjson::kObjectType);
+		rapidjson::Value plate_size_max(rapidjson::kObjectType);
+		rapidjson::Value zones(rapidjson::kArrayType);
+
+		// Minimal plate size
+		{
+			rapidjson::Value width(rapidjson::kNumberType);
+			width.SetInt(min_plate_size().width);
+
+			plate_size_min.AddMember("width", width, doc.GetAllocator());
+
+			rapidjson::Value height(rapidjson::kNumberType);
+			height.SetInt(min_plate_size().height);
+			plate_size_min.AddMember("height", height, doc.GetAllocator());
+		}
+
+		// Maximal plate size
+		{
+			rapidjson::Value width(rapidjson::kNumberType);
+			width.SetInt(max_plate_size().width);
+			plate_size_max.AddMember("width", width, doc.GetAllocator());
+
+			rapidjson::Value height(rapidjson::kNumberType);
+			height.SetInt(max_plate_size().height);
+			plate_size_max.AddMember("height", height, doc.GetAllocator());
+		}
+
+		// Zones
+		{
+			std::lock_guard<std::mutex> lock(m_zones_mutex);
+
+			for (auto z = m_zones.begin(); z != m_zones.end(); ++z)
+			{
+				rapidjson::Value zone(rapidjson::kObjectType);
+
+				rapidjson::Value x(rapidjson::kNumberType);
+				rapidjson::Value y(rapidjson::kNumberType);
+				rapidjson::Value width(rapidjson::kNumberType);
+				rapidjson::Value height(rapidjson::kNumberType);
+
+				x.SetInt(z->zone().x);
+				y.SetInt(z->zone().y);
+				width.SetInt(z->zone().width);
+				height.SetInt(z->zone().height);
+
+				rapidjson::Value plate_size(rapidjson::kObjectType);
+				{
+					rapidjson::Value width(rapidjson::kNumberType);
+					width.SetInt(z->plate_size().width);
+					plate_size.AddMember("width", width, doc.GetAllocator());
+
+					rapidjson::Value height(rapidjson::kNumberType);
+					height.SetInt(z->plate_size().height);
+					plate_size.AddMember("height", height, doc.GetAllocator());
+				}
+
+				zone.AddMember("x", x, doc.GetAllocator());
+				zone.AddMember("y", y, doc.GetAllocator());
+				zone.AddMember("width", width, doc.GetAllocator());
+				zone.AddMember("height", height, doc.GetAllocator());
+				zone.AddMember("plateSize", plate_size, doc.GetAllocator());
+
+				zones.PushBack(zone, doc.GetAllocator());
+			}
+		}
+
+		recognizer_parameters.AddMember("plateSizeMin", plate_size_min, doc.GetAllocator());
+		recognizer_parameters.AddMember("plateSizeMax", plate_size_max, doc.GetAllocator());
+		recognizer_parameters.AddMember("zones", zones, doc.GetAllocator());
+
+		if (doc.HasMember("recognizerParameters"))
+			doc.RemoveMember("recognizerParameters");
+
+		doc.AddMember("recognizerParameters", recognizer_parameters, doc.GetAllocator());
+
+		file.close();
+		file.open(filename.c_str(), std::fstream::out);
+		rapidjson::OStreamWrapper out_stream(file);
+		rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(out_stream);
+
+		bool write_result = doc.Accept(writer);
+		file.close();
+		return write_result;
+	}
+
+	return false;
+};
+
+bool LPRecognizer::load_from_json(const std::string& filename)
+{
+	std::fstream file(filename.c_str(), std::fstream::in);
+	if (!file.is_open())
+		return false;
+
+	rapidjson::Document doc;
+	rapidjson::IStreamWrapper in_stream(file);
+
+	doc.ParseStream(in_stream);
+
+	if (doc.HasParseError() || !doc.IsObject())
+		return false;
+
+	if (doc.HasMember("recognizerParameters"))
+	{
+		rapidjson::Value recognizer_parameters;
+		recognizer_parameters = doc["recognizerParameters"];
+		
+		if (recognizer_parameters.IsObject())
+		{
+			if(recognizer_parameters.HasMember("plateSizeMin"))
+			{
+				rapidjson::Value plate_size_min;
+				plate_size_min = recognizer_parameters["plateSizeMin"];
+
+				if (plate_size_min.IsObject())
+				{
+					if (plate_size_min.HasMember("width") && plate_size_min.HasMember("height"))
+					{
+						rapidjson::Value width, height;
+						width = plate_size_min["width"];
+						height = plate_size_min["height"];
+
+						cv::Size size;
+
+						if (width.IsInt() && height.IsInt())
+						{
+							size.width = width.GetInt();
+							size.height = height.GetInt();
+							set_min_plate_size(size);
+						}
+					}
+				}
+			}
+
+			if(recognizer_parameters.HasMember("plateSizeMax"))
+			{
+				rapidjson::Value plate_size_max;
+				plate_size_max = recognizer_parameters["plateSizeMax"];
+
+				if (plate_size_max.IsObject())
+				{
+					if (plate_size_max.HasMember("width") && plate_size_max.HasMember("height"))
+					{
+						rapidjson::Value width, height;
+						width = plate_size_max["width"];
+						height = plate_size_max["height"];
+
+						cv::Size size;
+
+						if (width.IsInt() && height.IsInt())
+						{
+							size.width = width.GetInt();
+							size.height = height.GetInt();
+							set_max_plate_size(size);
+						}
+					}
+				}
+			}
+
+			if(recognizer_parameters.HasMember("zones"))
+			{
+				rapidjson::Value zones;
+				zones = recognizer_parameters["zones"];
+
+				if (zones.IsArray())
+				{
+					for (size_t i = 0; i < zones.Size(); ++i)
+					{
+						auto& zone = zones[i];
+
+						if (zone.IsObject())
+						{
+							if (zone.HasMember("x") && 
+								zone.HasMember("y") && 
+								zone.HasMember("width") && 
+								zone.HasMember("height"))
+							{
+								rapidjson::Value x, y, width, height;
+								x = zone["x"]; y = zone["y"];
+								width = zone["width"]; height = zone["height"];
+
+								LPRecognizerZone lpzone;
+								lpzone.clear();
+
+								if (x.IsInt() && y.IsInt() && width.IsInt() && height.IsInt())
+								{
+									cv::Rect zone_rect;
+
+									zone_rect.x = x.GetInt();
+									zone_rect.y = y.GetInt();
+									zone_rect.width = width.GetInt();
+									zone_rect.height = height.GetInt();
+
+									lpzone.set_zone(zone_rect);
+								}
+
+								if (zone.HasMember("plateSize"))
+								{
+									rapidjson::Value plate_size;
+									plate_size = zone["plateSize"];
+
+									if (plate_size.HasMember("width") && plate_size.HasMember("height"))
+									{
+										rapidjson::Value width, height;
+										width = plate_size["width"];
+										height = plate_size["height"];
+
+										if (width.IsInt() && height.IsInt())
+										{
+											cv::Size size;
+
+											size.width = width.GetInt();
+											size.height = height.GetInt();
+
+											lpzone.set_plate_size(size);
+										}
+									}
+								}
+
+								if (!lpzone.plate_size().empty() && !lpzone.zone().empty())
+								{
+									std::lock_guard<std::mutex> lock(m_zones_mutex);
+									m_zones.push_back(lpzone);
+								}													
+							}
+						}
+					}
+				}
+			}
+
+			return true;
+		}
+	}
+
+	return false;
+};
+
+bool LPRecognizer::capture_frame(const cv::Mat& frame)
+{
+	if (frame.empty() || frame.size().area() == 0)
+		return false;
+
+	m_input_mutex.lock();
+
+	if (frame.type() != CV_8UC1)
+		cvtColor(frame, m_gray_image, cv::COLOR_BGR2GRAY);
+	else
+		frame.copyTo(m_gray_image);
+
+	m_is_new_image_detection = true;
+	m_is_new_image_calibration = true;
+	m_input_mutex.unlock();
+	return true;
+};
+
+bool LPRecognizer::is_calibration_finished() const
+{
+	return m_is_calibration_finished.load();
+}
+
+bool LPRecognizer::stop_calibration()
+{
+	m_calibration_interruption.store(true);
+
+	// Wait thread finish for one second
+	for (size_t i = 0; i < 40; ++i)
+	{
+		if (m_is_calibration_finished.load())
+		{
+			if (m_calibration_thread.joinable())
+				m_calibration_thread.join();
+
+			return true;
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+	}
+
+	return false;
+};
+
+bool LPRecognizer::start_calibration()
+{	
+	if (m_is_calibration_finished.load())
+	{
+		if (m_calibration_thread.joinable())
+			m_calibration_thread.join();
+
+		m_is_calibration_finished.store(false);
+		m_calibration_interruption.store(false);
+		m_calibration_thread = std::thread(&LPRecognizer::calibration_function, this);
+
+		return true;
+	}
+
+	return false;
+};
+
+
+bool LPRecognizer::detect(std::vector<cv::Rect>& plates)
+{
+	cv::Mat img_working;
+
+	// Capture new frame
+	m_input_mutex.lock();
+
+	if (!m_is_new_image_detection ||
+		m_gray_image.empty() ||
+		m_gray_image.size().area() == 0)
+	{
+		m_input_mutex.unlock();
+		return false;
+	}
+
+	m_gray_image.copyTo(img_working);
+	m_is_new_image_detection = false;
+	m_input_mutex.unlock();
+
+	// Detect plates
+	{
+		std::lock_guard<std::mutex> lock(m_zones_mutex);
+
+		for (auto it = m_zones.begin(); it != m_zones.end(); ++it)
+		{
+			std::vector<cv::Rect> plates_ = detect_plates(img_working, it->zone(), it->plate_size(), 3);
+			plates.insert(plates.end(), plates_.begin(), plates_.end());
+		}
+	}
+
+	// Group idential rects
+	plates.insert(std::end(plates), std::begin(plates), std::end(plates));
+	cv::groupRectangles(plates, 1, 0.5);
+
+	if (plates.empty())
+		return false;
+
+	return true;
 };
 
 std::vector<cv::Rect> LPRecognizer::detect_plates(const cv::Mat& gray_frame, const cv::Rect& ROI, const cv::Size& plate_size, const int& min_neighbor) const
 {
+	std::lock_guard<std::mutex> lock(m_detector_mutex);
+
 	if (!p_plate_detector || p_plate_detector->empty() || p_plate_detector->getOriginalWindowSize().empty())
 		return {};
 
-	if (gray_frame.empty() || gray_frame.size().area() == 0)
-		return {};
-
-	if (plate_size.empty())
+	if (plate_size.empty() || gray_frame.empty() || gray_frame.size().area() == 0)
 		return {};
 
 	cv::Rect roi(0, 0, gray_frame.cols, gray_frame.rows);
 	if (!ROI.empty() && !(ROI.x < roi.x || ROI.y < roi.y || ROI.x + ROI.width > roi.width || ROI.y + ROI.height > roi.height))
 		roi = ROI;
+	else
+		return {};
 
 	std::vector<cv::Rect> plates;
 	const cv::Size orig_wnd = p_plate_detector->getOriginalWindowSize();
@@ -85,525 +461,321 @@ std::vector<cv::Rect> LPRecognizer::detect_plates(const cv::Mat& gray_frame, con
 	return plates;
 };
 
-void LPRecognizer::calibrate_zones(const cv::Mat& frame, cv::Mat& debug_frame)
+void LPRecognizer::calibration_function()
 {
-	if (p_plate_detector->empty() || frame.empty() || frame.size().area() == 0)
-		return;
+	cv::Mat img_working;
 
-	if (is_calib_finished)
-		return;
-
-	// ----------------- DEBUG PRINT -----------------
-	for (auto it = m_zones.begin(); it != m_zones.end(); ++it)
-		it->print(debug_frame);
-
-	m_cur_zone.print(debug_frame);
-	// ----------------- ----------- -----------------
-
-	// SM variables
+	int min_dist_to_border = 0;
+	double cur_stop_weight = 0.0;
 	double p_width = 0.0, p_height = 0.0;
+	
+	double orig_plate_resize = 1.0;
+	cv::Size orig_plate_size = {};
+	cv::Size min_ps = min_plate_size();
+	cv::Size max_ps = max_plate_size();
 
-	// SM parameters:
-	const size_t max_zero_zone_count = 2;
-	const int min_dist_to_border = frame.rows / 20;
+	std::list<std::vector<cv::Rect>> history_plates;
+	CalibrationState state = CalibrationState::init;
 
+	LPRecognizerZone cur_zone;
+	std::list<LPRecognizerZone> zones;
+	std::list<LPRecognizerZone>::iterator it_detect_zone = zones.end();
 
-	this->set_max_plate_size(cv::Size(80, 30)); // DEBUG
-	this->set_min_plate_size(cv::Size(25, 8)); // DEBUG
+	while (!m_calibration_interruption.load())
+	{		
+		// Capture new frame
+		m_input_mutex.lock();
 
-	// Detect plates, update missed frames counter
-	auto plates = detect_plates(frame, m_cur_zone.zone(), m_cur_zone.plate_size(), 5);
-
-	if (plates.empty())
-	{
-		if (m_zones.empty())
-			m_cur_stop_weight += 0.05;
-		else
-			if (!process_frame(frame, debug_frame).empty())
-				m_cur_stop_weight += 1.0;
-	}
-	else
-	{
-		m_cur_zone.add_points(plates);
-		m_cur_stop_weight = std::max(0.0, m_cur_stop_weight - 5.0);
-	}
-
-	printf("Current zone info: stop weight = %.1f, point size = %u \r\n", m_cur_stop_weight, m_cur_zone.points_size());
-
-	// State machine processing
-	switch (m_state)
-	{
-	case CalibrationState::init:
-
-		m_cur_zone.clear();		
-		m_cur_zone.set_frame_size(cv::Size(frame.cols, frame.rows));
-		m_cur_zone.set_zone(cv::Rect(0, 0, frame.cols, frame.rows));
-		m_cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
-		m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-
-		m_cur_stop_weight = 0.0;
-
-		m_state = CalibrationState::up_search;
-		break;
-
-	case CalibrationState::up_search:
-
-		if (m_cur_zone.points_size() >= POINTS_TO_CALIBRATE || m_cur_stop_weight >= MAX_STOP_WEIGHT)
+		if (!m_is_new_image_calibration ||
+			m_gray_image.empty() ||
+			m_gray_image.size().area() == 0)
 		{
-			m_cur_stop_weight = 0.0;
+			m_input_mutex.unlock();
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			continue;
+		}
+		
+		m_gray_image.copyTo(img_working);
+		m_is_new_image_calibration = false;
+		m_input_mutex.unlock();
+		
+		// Detect movements in frame
+		bool is_movement = false;
 
-			if (m_cur_zone.points_size() >= std::min(MIN_POINTS_TO_CALIBRATE, POINTS_TO_CALIBRATE)) // Save zone and scale it
+		if (it_detect_zone != zones.end())
+		{
+			auto plate_tmp = detect_plates(img_working, it_detect_zone->zone(), it_detect_zone->plate_size(), 3);
+			for (auto p1 = plate_tmp.begin(); p1 != plate_tmp.end(); ++p1)
 			{
-				// Estimate zone rectangle and save zone
-				m_cur_zone.calibrate();
-				m_zones.push_back(m_cur_zone);
-				correct_zones(cv::Size(frame.cols, frame.rows));
+				bool is_staing = false;
+				const double thresh = 0.3 * cv::norm(p1->tl() - p1->br());
+				const cv::Point p1_center(p1->x + p1->width / 2, p1->y + p1->height / 2);
 
-				// Check distance to border (min dist to bottom or top)			
-				if (std::min((frame.rows - m_cur_zone.zone().br().y), (m_cur_zone.zone().y)) < min_dist_to_border)
+				for (auto vect = history_plates.begin(); vect != history_plates.end(); ++vect)
+					for (auto p2 = vect->begin(); p2 != vect->end(); ++p2)
+					{
+						const cv::Point p2_center(p2->x + p2->width / 2, p2->y + p2->height / 2);
+
+						if (cv::norm(p1_center - p2_center) < thresh)
+						{
+							is_staing = true;
+							vect = std::prev(history_plates.end());
+							break;
+						}
+					}
+
+				if (!is_staing)
 				{
-					m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-					m_state = CalibrationState::down_scale;
-				}
-				else
-				{
-					m_state = CalibrationState::up_scale;
+					is_movement = true;
+					break;
 				}
 			}
-			else // Here is only zone scaling
-			{
-				m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-				m_state = CalibrationState::down_scale;
-			}
+
+			if (history_plates.size() >= 5)
+				history_plates.pop_front();
+
+			history_plates.push_back(plate_tmp);
 		}
 
-		break;
+		// Detect plates
+		auto plates = detect_plates(img_working, cur_zone.zone(), cur_zone.plate_size(), 5);
 
-	case CalibrationState::up_scale:
+		size_t old_points_count = cur_zone.points_size();
+		cur_zone.add_points(plates);
 
-		p_width = static_cast<double>(m_cur_zone.plate_size().width) * PLATE_RESIZE_SCALE;
-		p_height = static_cast<double>(m_cur_zone.plate_size().height) * PLATE_RESIZE_SCALE;
-
-		m_cur_zone.clear();
-		m_cur_zone.set_frame_size(cv::Size(frame.cols, frame.rows));
-		m_cur_zone.set_zone(cv::Rect(0, 0, frame.cols, frame.rows));
-		m_cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
-		m_cur_zone.set_plate_size(cv::Size(std::round(p_width), std::round(p_height)));
-
-		if (!m_zones.empty())
+		// Update missed frames counter
+		if (cur_zone.points_size() <= old_points_count)
 		{
-			m_zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
-			{
-				return (z1.zone().y + z1.zone().height / 2) > (z2.zone().y + z2.zone().height / 2);
-			});
-
-			m_cur_zone.set_zone(cv::Rect(0, m_zones.front().zone().y, frame.cols, frame.rows - m_zones.front().zone().y));
-		}
-
-		if (((m_cur_zone.plate_size().area() > m_max_plate_size.area()) && !m_max_plate_size.empty()) ||
-			((m_cur_zone.plate_size().area() < m_min_plate_size.area()) && !m_min_plate_size.empty()))
-		{
-			m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-			m_state = CalibrationState::down_scale;
+			cur_stop_weight += 0.01;
+			if (is_movement)
+				cur_stop_weight += 0.99;
 		}
 		else
 		{
-			m_state = CalibrationState::up_search;
+			cur_stop_weight = std::max(0.0, cur_stop_weight - 3.0);
 		}
-		break;
 
-	case CalibrationState::down_search:
+		printf("Current zone info: stop weight = %.1f, point size = %u \r\n", cur_stop_weight, cur_zone.points_size());
 
-		if (m_cur_zone.points_size() >= POINTS_TO_CALIBRATE || m_cur_stop_weight >= MAX_STOP_WEIGHT)
+		// Process new frame
+		switch (state)
 		{
-			m_cur_stop_weight = 0.0;
+		case CalibrationState::init:
 
-			if (m_cur_zone.points_size() >= std::min(MIN_POINTS_TO_CALIBRATE, POINTS_TO_CALIBRATE)) // Save zone and scale it
+			cur_stop_weight = 0.0;
+			min_dist_to_border = img_working.rows / 20;
+
+			it_detect_zone = zones.end();
+	
+			cur_zone.set_frame_size(cv::Size(img_working.cols, img_working.rows));
+			cur_zone.set_zone(cv::Rect(0, 0, img_working.cols, img_working.rows));
+			cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
+
+			// Compute initial plate size		
 			{
-				// Estimate zone rectangle and save zone
-				m_cur_zone.calibrate();
-				m_zones.push_back(m_cur_zone);
-				correct_zones(cv::Size(frame.cols, frame.rows));
+				std::lock_guard<std::mutex> lock(m_detector_mutex);
+				orig_plate_size = p_plate_detector->getOriginalWindowSize();
+			}
 
-				// Check distance to border (min dist to bottom or top)			
-				if (std::min((frame.rows - m_cur_zone.zone().br().y), (m_cur_zone.zone().y)) < min_dist_to_border)
+			if (!min_ps.empty() && !max_ps.empty() && min_ps.area() < max_ps.area())
+				orig_plate_resize = sqrt(sqrt(min_ps.area()) * sqrt(max_ps.area())) / sqrt(orig_plate_size.area());	
+			else if (!min_ps.empty() && min_ps.area() > orig_plate_size.area())
+				orig_plate_resize = sqrt(min_ps.area()) / sqrt(orig_plate_size.area());
+			else if (!max_ps.empty() && max_ps.area() < orig_plate_size.area())
+				orig_plate_resize = sqrt(max_ps.area()) / sqrt(orig_plate_size.area());
+
+			orig_plate_size.width *= orig_plate_resize;
+			orig_plate_size.height *= orig_plate_resize;
+			cur_zone.set_plate_size(orig_plate_size);
+			
+			//printf("start plate_size: width = %u, height = %u \r\n", orig_plate_size.width, orig_plate_size.height);
+			state = CalibrationState::up_search;
+			break;
+
+		case CalibrationState::up_search:
+
+			if (cur_zone.points_size() >= POINTS_TO_CALIBRATE || cur_stop_weight >= MAX_STOP_WEIGHT)
+			{
+				cur_stop_weight = 0.0;
+
+				// Save zone and scale it
+				if (cur_zone.points_size() >= std::min(MIN_POINTS_TO_CALIBRATE, POINTS_TO_CALIBRATE)) 
 				{
-					m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-					m_state = CalibrationState::finished;
+					// Estimate zone rectangle and save zone
+					cur_zone.calibrate();
+					zones.push_back(cur_zone);
+					correct_zones(cv::Size(img_working.cols, img_working.rows), zones);
+
+					// Find zone for detection movements
+					it_detect_zone = std::find_if(zones.begin(), zones.end(), [&](const LPRecognizerZone& z)
+					{
+						return z.plate_size() == cur_zone.plate_size();
+					});
+
+					// Check distance to border (min dist to bottom or top)			
+					if (std::min((img_working.rows - cur_zone.zone().br().y), (cur_zone.zone().y)) < min_dist_to_border)
+					{
+						{
+							std::lock_guard<std::mutex> lock(m_detector_mutex);
+							cur_zone.set_plate_size(orig_plate_size);
+						}
+						state = CalibrationState::down_scale;
+					}
+					else
+					{
+						state = CalibrationState::up_scale;
+					}
 				}
-				else
+				// Here is only zone scaling
+				else 
 				{
-					m_state = CalibrationState::down_scale;
+					{
+						std::lock_guard<std::mutex> lock(m_detector_mutex);
+						cur_zone.set_plate_size(orig_plate_size);
+					}
+					state = CalibrationState::down_scale;
 				}
 			}
-			else // Here is only zone scaling
+
+			break;
+
+		case CalibrationState::up_scale:
+
+			p_width = static_cast<double>(cur_zone.plate_size().width) * PLATE_RESIZE_SCALE;
+			p_height = static_cast<double>(cur_zone.plate_size().height) * PLATE_RESIZE_SCALE;
+
+			cur_zone.clear();
+			cur_zone.set_frame_size(cv::Size(img_working.cols, img_working.rows));
+			cur_zone.set_zone(cv::Rect(0, 0, img_working.cols, img_working.rows));
+			cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
+			cur_zone.set_plate_size(cv::Size(std::round(p_width), std::round(p_height)));
+
+			if (!zones.empty())
 			{
-				m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-				m_state = CalibrationState::finished;
+				zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
+				{
+					return (z1.zone().y + z1.zone().height / 2) > (z2.zone().y + z2.zone().height / 2);
+				});
+
+				cur_zone.set_zone(cv::Rect(0, zones.front().zone().y, img_working.cols, img_working.rows - zones.front().zone().y));
 			}
-		}
-		break;
 
-	case CalibrationState::down_scale:
-
-		p_width = static_cast<double>(m_cur_zone.plate_size().width) / PLATE_RESIZE_SCALE;
-		p_height = static_cast<double>(m_cur_zone.plate_size().height) / PLATE_RESIZE_SCALE;
-
-		m_cur_zone.clear();
-		m_cur_zone.set_frame_size(cv::Size(frame.cols, frame.rows));
-		m_cur_zone.set_zone(cv::Rect(0, 0, frame.cols, frame.rows));
-		m_cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
-		m_cur_zone.set_plate_size(cv::Size(std::round(p_width), std::round(p_height)));
-
-		if (!m_zones.empty())
-		{
-			m_zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
+			if (((cur_zone.plate_size().area() > max_plate_size().area()) && !max_plate_size().empty()) ||
+				((cur_zone.plate_size().area() < min_plate_size().area()) && !min_plate_size().empty()))
 			{
-				return (z1.zone().y + z1.zone().height / 2) > (z2.zone().y + z2.zone().height / 2);
-			});
+				{
+					std::lock_guard<std::mutex> lock(m_detector_mutex);
+					cur_zone.set_plate_size(orig_plate_size);
+				}
+				state = CalibrationState::down_scale;
+			}
+			else
+			{
+				state = CalibrationState::up_search;
+			}
+			break;
 
-			m_cur_zone.set_zone(cv::Rect(0, 0, frame.cols, m_zones.back().zone().br().y));
+		case CalibrationState::down_search:
+
+			if (cur_zone.points_size() >= POINTS_TO_CALIBRATE || cur_stop_weight >= MAX_STOP_WEIGHT)
+			{
+				cur_stop_weight = 0.0;
+
+				// Save zone and scale it
+				if (cur_zone.points_size() >= std::min(MIN_POINTS_TO_CALIBRATE, POINTS_TO_CALIBRATE)) 
+				{
+					// Estimate zone rectangle and save zone
+					cur_zone.calibrate();
+					zones.push_back(cur_zone);
+					correct_zones(cv::Size(img_working.cols, img_working.rows), zones);
+
+					// Find zone for detection movements
+					it_detect_zone = std::find_if(zones.begin(), zones.end(), [&](const LPRecognizerZone& z)
+					{
+						return z.plate_size() == cur_zone.plate_size();
+					});
+
+					// Check distance to border (min dist to bottom or top)			
+					if (std::min((img_working.rows - cur_zone.zone().br().y), (cur_zone.zone().y)) < min_dist_to_border)
+					{
+						state = CalibrationState::finished;
+					}
+					else
+					{
+						state = CalibrationState::down_scale;
+					}
+				}
+				// Here is only zone scaling
+				else 
+				{
+					{
+						std::lock_guard<std::mutex> lock(m_detector_mutex);
+						cur_zone.set_plate_size(orig_plate_size);
+					}
+					state = CalibrationState::finished;
+				}
+			}
+			break;
+
+		case CalibrationState::down_scale:
+	
+			p_width = static_cast<double>(cur_zone.plate_size().width) / PLATE_RESIZE_SCALE;
+			p_height = static_cast<double>(cur_zone.plate_size().height) / PLATE_RESIZE_SCALE;
+
+			cur_zone.clear();
+			cur_zone.set_frame_size(cv::Size(img_working.cols, img_working.rows));
+			cur_zone.set_zone(cv::Rect(0, 0, img_working.cols, img_working.rows));
+			cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
+			cur_zone.set_plate_size(cv::Size(std::round(p_width), std::round(p_height)));
+
+			if (!zones.empty())
+			{
+				zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
+				{
+					return (z1.zone().y + z1.zone().height / 2) > (z2.zone().y + z2.zone().height / 2);
+				});
+
+				cur_zone.set_zone(cv::Rect(0, 0, img_working.cols, zones.back().zone().br().y));
+			}
+
+			if (((cur_zone.plate_size().area() > max_plate_size().area()) && !max_plate_size().empty()) ||
+				((cur_zone.plate_size().area() < min_plate_size().area()) && !min_plate_size().empty()))
+			{
+				state = CalibrationState::finished;
+			}
+			else
+			{
+				state = CalibrationState::down_search;
+			}
+			break;
+
+		case CalibrationState::finished:
+
+			{
+				std::lock_guard<std::mutex> lock(m_zones_mutex);
+				m_zones.clear();
+				m_zones.insert(m_zones.end(), zones.begin(), zones.end());
+			}
+
+			m_is_calibration_finished.store(true);
+			return;
+
+		default: 
+			break;
 		}
-
-		if (((m_cur_zone.plate_size().area() > m_max_plate_size.area()) && !m_max_plate_size.empty()) ||
-			((m_cur_zone.plate_size().area() < m_min_plate_size.area()) && !m_min_plate_size.empty()))
-		{
-			m_state = CalibrationState::finished;
-		}
-		else
-		{
-			m_state = CalibrationState::down_search;
-		}
-		break;
-
-	case CalibrationState::finished:
-
-		correct_zones(cv::Size(frame.cols, frame.rows));
-		is_calib_finished = true;
-		break;
-
-	default: break;
 	}
+
+	m_is_calibration_finished.store(true);
 };
 
-//void LPRecognizer::calibrate_zones(const cv::Mat& frame, cv::Mat& debug_frame)
-//{
-//	 TODO: доделать следующие критерии останова масштабировани€:
-//	 1) –азмер окна меньше, чем мин. допустимый размер номера (задаетс€ пользователем)
-//	 ... 
-//	 TODO: 
-//	 если missed frames > thresh, то не забывать область, а все-таки сделать bound rect вокруг хот€ бы тех точек, которые успели накопитьс€..
-//	 ƒл€ начальной области missed frames считать без учета уже сущ. областей...
-//
-//	if (is_calib_finished)
-//		return;
-//
-//	for (auto it = m_zones.begin(); it != m_zones.end(); ++it)
-//		it->print(debug_frame);
-//
-//	m_cur_zone.print(debug_frame);
-//
-//	if (frame.empty() || frame.size().area() == 0)
-//		return;
-//
-//	if (p_plate_detector->empty())
-//		return;
-//	
-//	 SM variables
-//	int dist_to_border = 0;
-//	double p_width = 0.0, p_height = 0.0;
-//
-//	 SM parameters:
-//	const double resize_coef_scale = 1.3;
-//	const int max_missed_frames = 100;
-//	const size_t max_zero_zone_count = 2;
-//	const size_t points_to_calibrate = 75;
-//	const int min_dist_to_border = frame.rows / 20;
-//
-//	printf("Current zone points size = %u \r\n", m_cur_zone.points_size());
-//
-//	std::vector<cv::Rect> plates;
-//
-//	 ќбрабатываем
-//	switch (m_state)
-//	{
-//	case CalibrationState::none:
-//
-//		m_cur_zone.clear();
-//		p_width = static_cast<double>(p_plate_detector->getOriginalWindowSize().width) / resize_coef_scale;
-//		p_height = static_cast<double>(p_plate_detector->getOriginalWindowSize().height) / resize_coef_scale;
-//		m_cur_zone.set_plate_size(cv::Size(std::round(p_width), std::round(p_height)));
-//
-//		m_cur_missed_frames = 0;
-//		m_state = CalibrationState::up_scale_init;
-//		break;
-//
-//
-//	case CalibrationState::up_scale_init:
-//
-//		p_width = static_cast<double>(m_cur_zone.plate_size().width) * resize_coef_scale;
-//		p_height = static_cast<double>(m_cur_zone.plate_size().height) * resize_coef_scale;
-//
-//		m_cur_zone.clear();
-//		m_cur_zone.set_plate_size(cv::Size(std::round(p_width), std::round(p_height)));
-//		m_cur_zone.set_frame_size(cv::Size(frame.cols, frame.rows));
-//		m_cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
-//		
-//		m_cur_zone.set_zone(cv::Rect(0, 0, frame.cols, frame.rows)); // TODO	
-//
-//
-//		if (!m_zones.empty())
-//		{
-//			 Sort zones by position from bottom to top
-//			m_zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
-//			{
-//				const auto z1_center = z1.zone().y + z1.zone().height / 2;
-//				const auto z2_center = z2.zone().y + z2.zone().height / 2;
-//				return z1_center > z2_center;
-//			});
-//
-//			const auto& zone = m_zones.front().zone();
-//			m_cur_zone.set_zone(cv::Rect(0, zone.y, frame.cols, frame.rows - zone.y));
-//		}
-//
-//		printf("cur zone plate w = %i h = %i \r\n", m_cur_zone.plate_size().width, m_cur_zone.plate_size().height);
-//		m_state = CalibrationState::up_scale;
-//		break;
-//
-//	case CalibrationState::up_scale:
-//
-//		plates = detect_plates(frame, m_cur_zone.zone(), m_cur_zone.plate_size(), 5);
-//		m_cur_zone.add_points(plates);
-//
-//		 ѕроверка на отсутствие номеров 
-//		if (plates.empty())
-//		{
-//			 “ут еще провер€ть, есть ли в других зонах номера
-//			if (!this->process_frame(frame, debug_frame).empty())
-//			{
-//				++m_cur_missed_frames;				
-//				printf("Current missed frames count = %u \r\n", m_cur_missed_frames);
-//			}
-//		}
-//		else
-//		{
-//			printf("Current zone points size = %u \r\n", m_cur_zone.points_size());
-//			m_cur_missed_frames = std::max(0, m_cur_missed_frames - 2);
-//		}
-//
-//		 TODO:
-//		 ≈сли у нас набралось нужное кол-во точек, то калибруем, сохран€ем, переходим к следующей зоне
-//		 ≈сли превысилс€ счетчик пропущенных кадров ?
-//
-//		if (m_cur_missed_frames > max_missed_frames)
-//		{
-//			m_cur_missed_frames = 0;
-//			++m_zero_zones_count;
-//
-//			if (m_cur_zone.points_size() > 15)
-//			{
-//				 Estimate zone rectangle and save zone
-//				m_cur_zone.calibrate();
-//				m_zones.push_back(m_cur_zone);
-//				correct_zones(cv::Size(frame.cols, frame.rows));
-//
-//				 Check distance to border (min dist to bottom or top)			
-//				dist_to_border = std::min((frame.rows - m_cur_zone.zone().br().y), (m_cur_zone.zone().y));
-//
-//				if (dist_to_border < min_dist_to_border)
-//				{
-//					m_state = CalibrationState::down_scale_init;
-//					break; // !
-//				}
-//				else
-//				{
-//					m_state = CalibrationState::up_scale_init;
-//				}
-//				printf("Distance to border = %i \r\n", dist_to_border);
-//			}
-//			
-//			if (m_zero_zones_count >= max_zero_zone_count)
-//			{
-//				m_zero_zones_count = 0;
-//				m_cur_zone.clear();
-//				m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-//				m_state = CalibrationState::down_scale_init;
-//			}
-//			else
-//			{
-//				m_state = CalibrationState::up_scale_init;
-//			}
-//
-//			printf("zero zones count = %u \r\n", m_zero_zones_count);
-//		}
-//
-//		if (m_cur_zone.points_size() >= points_to_calibrate)
-//		{
-//			 Estimate zone rectangle and save zone
-//			m_cur_zone.calibrate();
-//			m_zones.push_back(m_cur_zone);
-//			correct_zones(cv::Size(frame.cols, frame.rows));
-//
-//			 Check distance to border (min dist to bottom or top)			
-//			dist_to_border = std::min((frame.rows - m_cur_zone.zone().br().y), (m_cur_zone.zone().y));
-//
-//			if (dist_to_border < min_dist_to_border)
-//			{
-//				m_cur_zone.set_plate_size(p_plate_detector->getOriginalWindowSize());
-//				m_state = CalibrationState::down_scale_init;
-//			}
-//			else
-//			{
-//				m_state = CalibrationState::up_scale_init;
-//			}
-//			printf("Distance to border = %i \r\n", dist_to_border);
-//		}
-//
-//		break;
-//
-//
-//	case CalibrationState::down_scale_init:
-//
-//		p_width = static_cast<double>(m_cur_zone.plate_size().width) / resize_coef_scale;
-//		p_height = static_cast<double>(m_cur_zone.plate_size().height) / resize_coef_scale;
-//
-//		m_cur_zone.clear();
-//		m_cur_zone.set_plate_size(cv::Size(std::round(p_width), std::round(p_height)));
-//		m_cur_zone.set_frame_size(cv::Size(frame.cols, frame.rows));
-//
-//		 TODO	
-//		m_cur_zone.set_zone(cv::Rect(0, 0, frame.cols, frame.rows));
-//		if (!m_zones.empty())
-//		{
-//			 Sort zones by position from bottom to top
-//			m_zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
-//			{
-//				const auto z1_center = z1.zone().y + z1.zone().height / 2;
-//				const auto z2_center = z2.zone().y + z2.zone().height / 2;
-//				return z1_center > z2_center;
-//			});
-//
-//			const auto& zone = m_zones.back().zone();
-//			m_cur_zone.set_zone(cv::Rect(0, 0, frame.cols, zone.br().y));
-//		}
-//
-//
-//		m_cur_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
-//
-//		printf("cur zone plate w = %i h = %i \r\n", m_cur_zone.plate_size().width, m_cur_zone.plate_size().height);
-//		m_state = CalibrationState::down_scale;
-//		break;
-//
-//	case CalibrationState::down_scale:
-//
-//		plates = detect_plates(frame, m_cur_zone.zone(), m_cur_zone.plate_size(), 5);
-//		m_cur_zone.add_points(plates);
-//
-//		 ѕроверка на отсутствие номеров 
-//		if (plates.empty())
-//		{
-//			 “ут еще провер€ть, есть ли в других зонах номера
-//			if (!this->process_frame(frame, debug_frame).empty())
-//			{
-//				++m_cur_missed_frames;
-//				printf("Current missed frames count = %u \r\n", m_cur_missed_frames);
-//			}
-//		}
-//		else
-//		{
-//			printf("Current zone points size = %u \r\n", m_cur_zone.points_size());
-//			m_cur_missed_frames = std::max(0, m_cur_missed_frames - 2);
-//		}
-//
-//		if (m_cur_missed_frames > max_missed_frames)
-//		{
-//			m_cur_missed_frames = 0;
-//			++m_zero_zones_count;
-//
-//			if (m_cur_zone.points_size() > 15)
-//			{
-//				 Estimate zone rectangle and save zone
-//				m_cur_zone.calibrate();
-//				m_zones.push_back(m_cur_zone);
-//				correct_zones(cv::Size(frame.cols, frame.rows));
-//
-//				 Check distance to border (min dist to bottom or top)			
-//				dist_to_border = std::min((frame.rows - m_cur_zone.zone().br().y), (m_cur_zone.zone().y));
-//
-//				if (dist_to_border < min_dist_to_border)
-//				{
-//					m_state = CalibrationState::correction;
-//					break; // !
-//				}
-//				else
-//				{
-//					m_state = CalibrationState::down_scale_init;
-//				}
-//				printf("Distance to border = %i \r\n", dist_to_border);
-//			}
-//
-//
-//			if (m_zero_zones_count >= max_zero_zone_count)
-//			{
-//				m_zero_zones_count = 0;
-//				m_state = CalibrationState::correction;
-//			}
-//			else
-//			{
-//				m_state = CalibrationState::down_scale_init;
-//			}
-//
-//			printf("zero zones count = %u \r\n", m_zero_zones_count);
-//		}
-//
-//		if (m_cur_zone.points_size() >= points_to_calibrate)
-//		{
-//			 Estimate zone rectangle and save zone
-//			m_cur_zone.calibrate();
-//			m_zones.push_back(m_cur_zone);
-//			correct_zones(cv::Size(frame.cols, frame.rows)); // TODO ___________________________
-//
-//			 Check distance to border (min dist to bottom or top)
-//			dist_to_border = std::min((frame.rows - m_cur_zone.zone().br().y), (m_cur_zone.zone().y));
-//
-//			if (dist_to_border < min_dist_to_border)
-//			{
-//				m_state = CalibrationState::correction;
-//			}
-//			else
-//			{
-//				m_state = CalibrationState::down_scale_init;
-//			}
-//
-//			printf("Distance to border = %i \r\n", dist_to_border);
-//		}
-//		
-//		break;
-//
-//
-//
-//
-//
-//	case CalibrationState::correction:
-//
-//		correct_zones(cv::Size(frame.cols, frame.rows));
-//		m_state = CalibrationState::finished;
-//		break;
-//
-//	case CalibrationState::finished:
-//		is_calib_finished = true;
-//		break;
-//
-//	default: break;
-//	}
-//};
 
-void LPRecognizer::correct_zones(const cv::Size& frame_size)
+void LPRecognizer::correct_zones(const cv::Size& frame_size, std::list<LPRecognizerZone>& zones) const
 {
-	// TODO: вдруг попали пустые зоны? удалить их.
+	// Delete empty zones
+	zones.erase(std::remove_if(zones.begin(), zones.end(), [](const LPRecognizerZone& z) { return z.zone().empty(); }), zones.end());
 
 	// Sort zones by position from bottom to top
-	m_zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
+	zones.sort([](const LPRecognizerZone& z1, const LPRecognizerZone& z2)
 	{
 		const auto z1_center = z1.zone().y + z1.zone().height / 2;
 		const auto z2_center = z2.zone().y + z2.zone().height / 2;
@@ -611,8 +783,8 @@ void LPRecognizer::correct_zones(const cv::Size& frame_size)
 	});
 
 	// Remove zones that fully covered by another 
-	for (auto z1 = m_zones.begin(); z1 != m_zones.end(); ++z1)
-		for (auto z2 = m_zones.begin(); z2 != m_zones.end(); ++z2)
+	for (auto z1 = zones.begin(); z1 != zones.end(); ++z1)
+		for (auto z2 = zones.begin(); z2 != zones.end(); ++z2)
 		{
 			if (z1 == z2) continue;
 
@@ -623,30 +795,32 @@ void LPRecognizer::correct_zones(const cv::Size& frame_size)
 				break;
 			}
 		}
-	m_zones.erase(std::remove_if(m_zones.begin(), m_zones.end(), [](const LPRecognizerZone& z1) { return z1.zone().empty(); }), m_zones.end());
+	zones.erase(std::remove_if(zones.begin(), zones.end(), [](const LPRecognizerZone& z1) { return z1.zone().empty(); }), zones.end());
 
 	// Correct zone sizes
-	for (auto z_down = m_zones.begin(); z_down != std::prev(m_zones.end()); ++z_down)
+	for (auto z_down = zones.begin(); z_down != std::prev(zones.end()); ++z_down)
 	{
 		auto z_up = std::next(z_down);		
 		const int mid_y = ((z_up->zone().y + z_up->zone().height) + z_down->zone().y) / 2;
 		
-		if (mid_y >= z_down->zone().y) // перекрываютс€ // TODO: тут все-таки надо считать, что перекрываютс€ с каким-то допуском...
+		// Zones cross with each other
+		if (mid_y >= z_down->zone().y)
 		{
-			//  оррекци€ нижней зоны
+			// Correct bottom zone
 			cv::Rect zone_bot_rect = z_down->zone();
 			zone_bot_rect.y = std::max(0, mid_y - z_down->plate_size().height);
 			zone_bot_rect.height = (z_down->zone().y + z_down->zone().height) - zone_bot_rect.y;
 
-			//  оррекци€ верхней зоны
+			// Correct top zone
 			cv::Rect zone_top_rect = z_up->zone();
 			zone_top_rect.height = std::min(frame_size.height, (mid_y + z_up->plate_size().height)) - z_up->zone().y;
 
-			// —охран€ем скорректированные размеры зон
+			// Save corrected zones
 			z_down->set_zone(zone_bot_rect);
 			z_up->set_zone(zone_top_rect);
 		}
-		else // не перекрываемс€ - интерполируем
+		// Zones don't cross with each other
+		else
 		{
 			cv::Rect new_rect;
 			new_rect.y = std::max(0, mid_y - 2 * z_up->plate_size().height);
@@ -662,38 +836,9 @@ void LPRecognizer::correct_zones(const cv::Size& frame_size)
 			new_zone.set_frame_size(frame_size);
 			new_zone.set_color(cv::Scalar(rand() % 255, rand() % 255, rand() % 255));
 			new_zone.set_plate_size(cv::Size(new_plate_w, new_plate_h));
-			m_zones.push_back(new_zone);
+			zones.push_back(new_zone);
 
-			correct_zones(frame_size);
+			correct_zones(frame_size, zones);
 		}	
 	}
-};
-
-std::vector<cv::Rect> LPRecognizer::process_frame(const cv::Mat& frame, cv::Mat& debug_frame)
-{
-	if (frame.empty() || frame.size().area() == 0)
-		return {};
-
-	//cv::Mat gray_frame;
-	//if (frame.type() != CV_8UC1)
-	//	cvtColor(frame, gray_frame, cv::COLOR_BGR2GRAY);
-	//else
-	//	frame.copyTo(gray_frame);
-
-	std::vector<cv::Rect> plates_all;
-
-	for (auto it = m_zones.begin(); it != m_zones.end(); ++it)
-	{
-		std::vector<cv::Rect> plates = detect_plates(frame, it->zone(), it->plate_size(), 3);
-		plates_all.insert(plates_all.end(), plates.begin(), plates.end());
-	}
-
-	// Group idential rects
-	plates_all.insert(std::end(plates_all), std::begin(plates_all), std::end(plates_all));
-	cv::groupRectangles(plates_all, 1, 0.5);
-
-	for (auto& p : plates_all)
-		cv::rectangle(debug_frame, p, cv::Scalar(0, 255, 0), 2, CV_AA);
-
-	return plates_all;
 };

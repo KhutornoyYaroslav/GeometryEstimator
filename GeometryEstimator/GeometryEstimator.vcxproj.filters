@@ -13,18 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Исходные файлы\LicensePlate">
-      <UniqueIdentifier>{38ed4217-2cef-44b8-908a-177348a84f2e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Файлы заголовков\LicensePlate">
-      <UniqueIdentifier>{afa08dc4-c7ce-403b-bb99-e1a1ab23b53b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Исходные файлы\OpticalFlow">
-      <UniqueIdentifier>{4d701041-9c0d-4500-8c73-005d3f7fe7fa}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Файлы заголовков\OpticalFlow">
-      <UniqueIdentifier>{ca91c825-c663-4243-b1d9-47e841d83b7d}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Исходные файлы\AutoFocus">
       <UniqueIdentifier>{ca60c59b-4a36-49ec-8c0c-944ce2a57d44}</UniqueIdentifier>
     </Filter>
@@ -43,19 +31,34 @@
     <Filter Include="Исходные файлы\HungarianAlgorithm">
       <UniqueIdentifier>{910d9579-caef-4ef8-ac09-c7e9dbf76248}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Исходные файлы\LPRecognizer">
+      <UniqueIdentifier>{27631360-f239-4df7-91df-48393de2ffda}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\LPRecognizer">
+      <UniqueIdentifier>{a574e244-9d38-4f0f-8770-dcb28bd6bb48}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\LPTracker">
+      <UniqueIdentifier>{38ed4217-2cef-44b8-908a-177348a84f2e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\LPTracker">
+      <UniqueIdentifier>{afa08dc4-c7ce-403b-bb99-e1a1ab23b53b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\OFTracker">
+      <UniqueIdentifier>{4d701041-9c0d-4500-8c73-005d3f7fe7fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\OFTracker">
+      <UniqueIdentifier>{ca91c825-c663-4243-b1d9-47e841d83b7d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="LPTracker.cpp">
-      <Filter>Исходные файлы\LicensePlate</Filter>
-    </ClCompile>
-    <ClCompile Include="LPRecognizer.cpp">
-      <Filter>Исходные файлы\LicensePlate</Filter>
+      <Filter>Исходные файлы\LPTracker</Filter>
     </ClCompile>
     <ClCompile Include="OpticalFlowTracker.cpp">
-      <Filter>Исходные файлы\OpticalFlow</Filter>
+      <Filter>Исходные файлы\OFTracker</Filter>
     </ClCompile>
     <ClCompile Include="AutoFocus.cpp">
       <Filter>Исходные файлы\AutoFocus</Filter>
@@ -67,21 +70,21 @@
       <Filter>Исходные файлы\HungarianAlgorithm</Filter>
     </ClCompile>
     <ClCompile Include="LPTrack.cpp">
-      <Filter>Исходные файлы\LicensePlate</Filter>
+      <Filter>Исходные файлы\LPTracker</Filter>
     </ClCompile>
     <ClCompile Include="LPRecognizerZone.cpp">
-      <Filter>Исходные файлы\LicensePlate</Filter>
+      <Filter>Исходные файлы\LPRecognizer</Filter>
+    </ClCompile>
+    <ClCompile Include="LPRecognizer.cpp">
+      <Filter>Исходные файлы\LPRecognizer</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="LPRecognizer.h">
-      <Filter>Файлы заголовков\LicensePlate</Filter>
-    </ClInclude>
     <ClInclude Include="LPTracker.h">
-      <Filter>Файлы заголовков\LicensePlate</Filter>
+      <Filter>Файлы заголовков\LPTracker</Filter>
     </ClInclude>
     <ClInclude Include="OpticalFlowTracker.h">
-      <Filter>Файлы заголовков\OpticalFlow</Filter>
+      <Filter>Файлы заголовков\OFTracker</Filter>
     </ClInclude>
     <ClInclude Include="AutoFocus.h">
       <Filter>Файлы заголовков\AutoFocus</Filter>
@@ -96,10 +99,13 @@
       <Filter>Файлы заголовков\HungarianAlgorithm</Filter>
     </ClInclude>
     <ClInclude Include="LPTrack.h">
-      <Filter>Файлы заголовков\LicensePlate</Filter>
+      <Filter>Файлы заголовков\LPTracker</Filter>
     </ClInclude>
     <ClInclude Include="LPRecognizerZone.h">
-      <Filter>Файлы заголовков\LicensePlate</Filter>
+      <Filter>Файлы заголовков\LPRecognizer</Filter>
+    </ClInclude>
+    <ClInclude Include="LPRecognizer.h">
+      <Filter>Файлы заголовков\LPRecognizer</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

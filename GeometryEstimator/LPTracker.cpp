@@ -3,14 +3,29 @@
 LPTracker::LPTracker()
 {
 	p_recognizer = std::make_unique<LPRecognizer>();
-	p_recognizer->initCascadeClassifier(); // check to error
 }
 
 void LPTracker::process_frame(const cv::Mat& frame, cv::Mat debug)
 {
 	// Detect new plates
-	p_recognizer->calibrate_zones(frame, debug); // TODO;
-	std::vector<cv::Rect> plates = p_recognizer->process_frame(frame, debug);
+	//p_recognizer->calibrate_zones(frame, debug); // TODO;
+
+	//static bool is_try_loaded = false;
+	//static bool is_loaded = false;
+
+	//if (!is_try_loaded)
+	//{
+	//	is_try_loaded = true;
+	//	if (p_recognizer->load_from_json("zones_config_6.json"))
+	//		is_loaded = true;
+	//	
+	//}
+	//
+	//if(!is_loaded)
+	//	p_recognizer->calibrate_zones(frame, debug);
+
+
+	std::vector<cv::Rect> plates = {};// p_recognizer->process_frame(frame, debug);
 
 	// Assign new plates to exisiting tracks
 	std::vector<bool> is_plate_assigned(plates.size(), false);
@@ -230,25 +245,25 @@ void LPTracker::process_frame(const cv::Mat& frame, cv::Mat debug)
 	//}
 
 
-	//for (size_t i = 0; i < m_finished_tracks.size(); ++i)
-	//{
-	//	const auto& color = m_finished_tracks[i].color();
-	//	auto& track = m_finished_tracks[i];
+	/*for (size_t i = 0; i < m_finished_tracks.size(); ++i)
+	{
+		const auto& color = m_finished_tracks[i].color();
+		auto& track = m_finished_tracks[i];
 
-	//	for (size_t j = 0; j < track.get_plates()->size() - 1; ++j)
-	//	{
-	//		const auto rect = track.get_plates()->at(j).get_rect();
-	//		const auto rect_center = track.get_plates()->at(j).get_center();
+		for (size_t j = 0; j < track.get_plates()->size() - 1; ++j)
+		{
+			const auto rect = track.get_plates()->at(j).get_rect();
+			const auto rect_center = track.get_plates()->at(j).get_center();
 
-	//		const auto rect_next = track.get_plates()->at(j + 1).get_rect();
-	//		const auto rect_center_next = track.get_plates()->at(j + 1).get_center();
-	//		cv::circle(debug, rect_center, 2, color, 2);
+			const auto rect_next = track.get_plates()->at(j + 1).get_rect();
+			const auto rect_center_next = track.get_plates()->at(j + 1).get_center();
+			cv::circle(debug, rect_center, 2, color, 2);
 
-	//		cv::line(debug, rect_center, rect_center_next, color, 1, CV_AA);
-	//	}
+			cv::line(debug, rect_center, rect_center_next, color, 1, CV_AA);
+		}
 
-	//	const auto rect = track.get_plates()->back().get_rect();
-	//	const auto rect_center = track.get_plates()->back().get_center();
-	//	cv::circle(debug, rect_center, 2, color, 2);
-	//}
+		const auto rect = track.get_plates()->back().get_rect();
+		const auto rect_center = track.get_plates()->back().get_center();
+		cv::circle(debug, rect_center, 2, color, 2);
+	}*/
 };
