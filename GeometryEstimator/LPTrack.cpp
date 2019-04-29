@@ -9,20 +9,20 @@ LPTrack::~LPTrack()
 {
 };
 
-LPTrack::LPTrack(const LPlate& plate)
+LPTrack::LPTrack(const LPPlate& plate)
 {
 	clean_lost_frames();
 	add_plate(plate);
 };
 
-LPTrack::LPTrack(const LPlate& plate, cv::Scalar color)
+LPTrack::LPTrack(const LPPlate& plate, cv::Scalar color)
 {
 	clean_lost_frames();
 	add_plate(plate);
 	set_color(color);
 }
 
-void LPTrack::add_plate(const LPlate& plate)
+void LPTrack::add_plate(const LPPlate& plate)
 {
 	m_plates.push_back(plate);
 };
@@ -52,7 +52,7 @@ cv::Scalar LPTrack::color() const
 	return m_color;
 };
 
-const std::vector<LPlate>* LPTrack::get_plates() const
+const std::vector<LPPlate>* LPTrack::get_plates() const
 {
 	return &m_plates;
 };
@@ -88,7 +88,7 @@ double LPTrack::lenght() const
 	double result = 0.0;
 
 	for (auto it = std::next(m_plates.begin()); it != m_plates.end(); ++it)
-		result += cv::norm(it->get_center() - std::prev(it)->get_center());
+		result += cv::norm(it->center_position() - std::prev(it)->center_position());
 
 	return result;
 };

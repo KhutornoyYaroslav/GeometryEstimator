@@ -395,6 +395,10 @@ bool LPRecognizer::detect(std::vector<cv::Rect>& plates)
 
 		for (auto it = m_zones.begin(); it != m_zones.end(); ++it)
 		{
+			if ((it->plate_size().area() < min_plate_size().area() && !min_plate_size().empty())|| 
+				(it->plate_size().area() > max_plate_size().area() && !max_plate_size().empty()))
+				continue;
+
 			std::vector<cv::Rect> plates_ = detect_plates(img_working, it->zone(), it->plate_size(), 3);
 			plates.insert(plates.end(), plates_.begin(), plates_.end());
 		}
@@ -555,7 +559,7 @@ void LPRecognizer::calibration_function()
 			cur_stop_weight = std::max(0.0, cur_stop_weight - 3.0);
 		}
 
-		printf("Current zone info: stop weight = %.1f, point size = %u \r\n", cur_stop_weight, cur_zone.points_size());
+		//printf("Current zone info: stop weight = %.1f, point size = %u \r\n", cur_stop_weight, cur_zone.points_size());
 
 		// Process new frame
 		switch (state)
@@ -588,7 +592,7 @@ void LPRecognizer::calibration_function()
 			orig_plate_size.height *= orig_plate_resize;
 			cur_zone.set_plate_size(orig_plate_size);
 			
-			//printf("start plate_size: width = %u, height = %u \r\n", orig_plate_size.width, orig_plate_size.height);
+			printf("start plate_size: width = %u, height = %u \r\n", orig_plate_size.width, orig_plate_size.height);
 			state = CalibrationState::up_search;
 			break;
 

@@ -135,8 +135,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="AutoFocus.cpp" />
+    <ClCompile Include="FrameCapture.cpp" />
     <ClCompile Include="GeometryCommon.cpp" />
+    <ClCompile Include="LPPlate.cpp" />
     <ClCompile Include="LPRecognizerZone.cpp" />
     <ClCompile Include="LPTrack.cpp" />
     <ClCompile Include="munkres.cpp" />
@@ -146,8 +147,9 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AutoFocus.h" />
+    <ClInclude Include="FrameCapture.h" />
     <ClInclude Include="GeometryCommon.h" />
+    <ClInclude Include="LPPlate.h" />
     <ClInclude Include="LPRecognizerZone.h" />
     <ClInclude Include="LPTrack.h" />
     <ClInclude Include="matrix.h" />

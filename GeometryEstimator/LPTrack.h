@@ -1,40 +1,26 @@
 #pragma once
-#include "opencv2/video/tracking.hpp"
+//#include "opencv2/video/tracking.hpp"
 #include "opencv2/imgproc.hpp"
-#include "opencv2/videoio.hpp"
-#include "opencv2/highgui.hpp"
+//#include "opencv2/videoio.hpp"
+//#include "opencv2/highgui.hpp"
 
-class LPlate
-{
-private:
-	cv::Rect rect;
-
-public:
-	LPlate() = default;
-	~LPlate() = default;
-	LPlate(const cv::Rect& rect) { this->rect = rect; };
-
-	cv::Point get_center() const
-	{
-		return cv::Point(rect.x + (rect.width / 2), rect.y + (rect.height / 2));
-	};
-
-	const cv::Rect* get_rect() const
-	{
-		return &rect;
-	};
-};
+#include "LPPlate.h"
 
 class LPTrack
 {
+private:
+	std::vector<LPPlate> m_plates;
+	cv::Scalar m_color;
+	int m_lost_frames;
+
 public:
 	LPTrack();
-	LPTrack(const LPlate& plate);
-	LPTrack(const LPlate& plate, cv::Scalar color);
+	LPTrack(const LPPlate& plate);
+	LPTrack(const LPPlate& plate, cv::Scalar color);
 	~LPTrack();
 
-	void add_plate(const LPlate& plate);
-	const std::vector<LPlate>* get_plates() const;
+	void add_plate(const LPPlate& plate);
+	const std::vector<LPPlate>* get_plates() const;
 
 	int get_average_age() const;
 
@@ -49,10 +35,5 @@ public:
 	int average_plate_height() const;
 
 	double lenght() const;
-
-private:
-	std::vector<LPlate> m_plates;
-	cv::Scalar m_color;
-	int m_lost_frames;
 };
 

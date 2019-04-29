@@ -25,6 +25,8 @@
 #define MAX_STOP_WEIGHT 100.0
 #define PLATE_RESIZE_SCALE 1.3
 
+// TODO: add CLEAR() method.
+
 class LPRecognizer
 {
 private:
